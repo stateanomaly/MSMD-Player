@@ -151,7 +151,30 @@ Add sound effects by placing WAV files named `sound0.wav`, `sound1.wav`, etc., i
 
 ## Configuration
 
-Edit `config.ini` to customize robot behavior:
+MSMD Player stores its configuration in a platform-specific user directory:
+
+- **macOS**: `~/Library/Application Support/MSMD/config.ini`
+- **Windows**: `%APPDATA%\MSMD\config.ini`
+- **Linux**: `~/.config/MSMD/config.ini`
+
+A default configuration file is automatically created on first run.
+
+### Changing Settings
+
+**Option 1: Settings Dialog (Recommended)**
+
+Click the Settings button (gear icon) in the main window to open the Settings dialog. All configuration options can be changed through the UI:
+- Upgrade Trigger (Hotspot or Level)
+- Upgrade Mode (Both, Left, Right, or Distance)
+- Minimum Power to Move (0-255)
+- Maximum Power to Move (0-255)
+- Show Reference Creator checkbox
+
+Changes are saved immediately when you click "Set".
+
+**Option 2: Manual Edit**
+
+You can also manually edit the `config.ini` file:
 
 ```ini
 [robot]
@@ -161,6 +184,8 @@ minpowertomove = 55         # Minimum power (0-255)
 maxpowertomove = 95         # Maximum power (0-255)
 showReferenceCreator = 0    # Show reference creator button (0 or 1)
 ```
+
+Restart the application for manual changes to take effect.
 
 ### Configuration Options
 
@@ -361,7 +386,11 @@ See project repository for license information.
 ## Troubleshooting
 
 ### "Config.ini was not found"
-Create a `config.ini` file in the project root using the configuration template above.
+This error should not occur as the config file is created automatically on first run. If you see this error:
+- Check that the application has write permissions to the user config directory
+- On macOS: `~/Library/Application Support/MSMD/`
+- On Windows: `%APPDATA%\MSMD\`
+- On Linux: `~/.config/MSMD/`
 
 ### "hotspots.json does not exist"
 Ensure your content folder contains a valid `hotspots.json` file with entries for each image.

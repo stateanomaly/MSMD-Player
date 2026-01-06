@@ -7,7 +7,7 @@ Created on Fri Apr 20 18:11:20 2018
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QHBoxLayout, QVBoxLayout, QGridLayout, QComboBox, QLabel, QSpinBox, QGroupBox, QPushButton, QWidget, QFrame, QSpacerItem, QSizePolicy)
+from PyQt5.QtWidgets import (QHBoxLayout, QVBoxLayout, QGridLayout, QComboBox, QLabel, QSpinBox, QGroupBox, QPushButton, QWidget, QFrame, QSpacerItem, QSizePolicy, QCheckBox)
 
 class QHLine(QFrame):
     def __init__(self):
@@ -76,7 +76,11 @@ class Settings(QWidget):
         self.MaxPower.setSingleStep(5)
         self.MaxPower.setFixedWidth(60)
         self.MaxPower.setValue(int(SettingsIn['maxPowerToMove']))
-        
+
+        self.ShowReferenceCreator = QCheckBox()
+        self.ShowReferenceCreator.setToolTip('Show the "Create Reference" button in the main window')
+        self.ShowReferenceCreator.setChecked(int(SettingsIn.get('showReferenceCreator', '0')) == 1)
+
         SetButton = QPushButton()
         SetButton.setToolTip('Use the current settings')
         SetButton.setText('Set')
@@ -115,12 +119,18 @@ class Settings(QWidget):
         
         hlayout1.addWidget(UpgradeFrame)
         hlayout1.addWidget(SpeedFrame)
-        
+
+        hlayoutRefCreator = QHBoxLayout()
+        hlayoutRefCreator.addWidget(QLabel('Show Reference Creator:'))
+        hlayoutRefCreator.addWidget(self.ShowReferenceCreator)
+        hlayoutRefCreator.addStretch(1)
+
         hlayout2.addStretch(1)
         hlayout2.addWidget(SetButton)
         hlayout2.addWidget(CancelButton)
         
         vlayout3.addLayout(hlayout1)
+        vlayout3.addLayout(hlayoutRefCreator)
         vlayout3.addStretch(1)
         vlayout3.addWidget(QHLine())
         vlayout3.addLayout(hlayout2)
@@ -131,7 +141,8 @@ class Settings(QWidget):
         out = {'upgradeTrigger': str(self.UpgradeTrigger.currentText()).lower(),
                'upgradeMode': str(self.UpgradeMode.currentText()).lower(),
                'minPowerToMove': str(self.MinPower.value()),
-               'maxPowerToMove': str(self.MaxPower.value())}
+               'maxPowerToMove': str(self.MaxPower.value()),
+               'showReferenceCreator': '1' if self.ShowReferenceCreator.isChecked() else '0'}
         return(out)
         
 #==============================================================================

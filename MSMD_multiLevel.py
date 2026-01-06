@@ -20,6 +20,7 @@ Version History:
 import sys
 import os
 import time
+from pathlib import Path
 from PyQt5.QtWidgets import (QApplication, QWidget, QLineEdit, QFileDialog,
 QPushButton, QLabel, QHBoxLayout, QVBoxLayout, QMessageBox, QStackedLayout,
 QGraphicsScene, QGraphicsView, QDesktopWidget, QGraphicsEllipseItem,
@@ -36,10 +37,42 @@ try:
     import pyautogui
 except :
     pass
-import pyaudio 
+import pyaudio
 import wave
-import glob 
- 
+import glob
+
+def getUserConfigDir():
+    """Get the platform-specific user configuration directory."""
+    if sys.platform == 'darwin':  # macOS
+        config_dir = Path.home() / 'Library' / 'Application Support' / 'MSMD'
+    elif sys.platform == 'win32':  # Windows
+        config_dir = Path(os.environ.get('APPDATA', Path.home())) / 'MSMD'
+    else:  # Linux and others
+        config_dir = Path.home() / '.config' / 'MSMD'
+
+    # Create directory if it doesn't exist
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir
+
+def getConfigFilePath():
+    """Get the full path to the config file in the user directory."""
+    return getUserConfigDir() / 'config.ini'
+
+def createDefaultConfig():
+    """Create a default config.ini file if it doesn't exist."""
+    config_path = getConfigFilePath()
+    if not config_path.exists():
+        default_config = """[robot]
+upgradetrigger = hotspot
+upgrademode = both
+minpowertomove = 55
+maxpowertomove = 95
+showReferenceCreator = 0
+"""
+        config_path.write_text(default_config)
+        print(f'Created default config at: {config_path}')
+    return config_path
+
 textToScanCodeTable = {}
 def buildScanCodeTranslationTable (hotSpotDict):
     for imageName,metadata in hotSpotDict.items():
@@ -243,23 +276,28 @@ class App(QWidget):
         
         
     def readConfig(self):
+        # Create default config if it doesn't exist
+        config_path = createDefaultConfig()
+        self.configFilePath = str(config_path)
+
         self.config = configparser.ConfigParser()
-        fileCheck = self.config.read('config.ini')
+        fileCheck = self.config.read(self.configFilePath)
         if(fileCheck == []):
-            QMessageBox.critical(self, 'Config Error!', 'config.ini was not found', QMessageBox.Ok)
+            QMessageBox.critical(self, 'Config Error!', f'config.ini was not found at {self.configFilePath}', QMessageBox.Ok)
         self.robotSettings = self.config['robot']
         self.upgradeTrigger = self.robotSettings['upgradeTrigger']
         self.upgradeMode = self.robotSettings['upgradeMode']
         self.minPowerToMove = self.robotSettings['minPowerToMove']
         self.maxPowerToMove = self.robotSettings['maxPowerToMove']
-        self.showReferenceCreator = int(self.robotSettings.get('showReferenceCreator', '1'))
+        self.showReferenceCreator = int(self.robotSettings.get('showReferenceCreator', '0'))
         
     def writeConfig(self):
         self.robotSettings['upgradeTrigger'] = self.upgradeTrigger
         self.robotSettings['upgradeMode'] = self.upgradeMode
         self.robotSettings['minPowerToMove'] = self.minPowerToMove
         self.robotSettings['maxPowerToMove'] = self.maxPowerToMove
-        with open('config.ini', 'w') as configFile:
+        self.robotSettings['showReferenceCreator'] = str(self.showReferenceCreator)
+        with open(self.configFilePath, 'w') as configFile:
             self.config.write(configFile)
     
     def openSettings(self):
@@ -285,7 +323,11 @@ class App(QWidget):
             self.upgradeMode = newSettings['upgradeMode']
             self.minPowerToMove = newSettings['minPowerToMove']
             self.maxPowerToMove = newSettings['maxPowerToMove']
+            self.showReferenceCreator = int(newSettings['showReferenceCreator'])
             self.writeConfig()
+            # Update reference creator button visibility if it exists
+            if hasattr(self, 'referenceCreator'):
+                self.referenceCreator.setVisible(self.showReferenceCreator == 1)
         else:
             print ('ERROR - Unknown message returned from Settings.py Window!')
         self.setDisabled(False)
