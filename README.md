@@ -187,6 +187,157 @@ MSMD Player can communicate with robot base stations via serial connection:
 - Supports multiple base stations simultaneously
 - Works without hardware (displays "BaseStation not connected" messages)
 
+## Building Standalone Applications
+
+You can create standalone executables for macOS, Windows, and Linux that don't require Python or any dependencies to be installed. These builds use PyInstaller to bundle everything into a single application.
+
+### Prerequisites
+
+**All Platforms:**
+- Python 3.8 or higher
+- Virtual environment with all dependencies installed (see Installation section)
+- PyInstaller (install with `pip install pyinstaller`)
+
+**Platform-Specific:**
+- **macOS**: PyAudio requires PortAudio (`brew install portaudio`)
+- **Windows**: No additional requirements
+- **Linux**: PyAudio may require PortAudio development files (`sudo apt-get install portaudio19-dev` on Ubuntu/Debian)
+
+**Important**: You must build on the target platform. You cannot build a Windows .exe on macOS, or vice versa.
+
+### Build Instructions
+
+#### macOS
+
+1. **Activate your virtual environment:**
+   ```bash
+   source venv/bin/activate
+   ```
+
+2. **Install PyInstaller:**
+   ```bash
+   pip install pyinstaller
+   ```
+
+3. **Build the application:**
+   ```bash
+   pyinstaller MSMD.spec --clean
+   ```
+
+4. **Find your application:**
+   - Location: `dist/MSMD.app`
+   - Size: ~92 MB
+   - Double-click to run, or drag to Applications folder
+
+5. **Distribution:**
+   - Compress the .app: `cd dist && zip -r MSMD-macOS.zip MSMD.app`
+   - Share the .zip file with users
+   - Users may see "unidentified developer" warning on first launch (right-click → Open to bypass)
+
+#### Windows
+
+1. **Activate your virtual environment:**
+   ```cmd
+   venv\Scripts\activate
+   ```
+
+2. **Install PyInstaller:**
+   ```cmd
+   pip install pyinstaller
+   ```
+
+3. **Build the application:**
+   ```cmd
+   pyinstaller MSMD.spec --clean
+   ```
+
+4. **Find your application:**
+   - Location: `dist\MSMD\MSMD.exe`
+   - Size: ~100-150 MB
+   - Double-click to run
+
+5. **Distribution:**
+   - Compress the entire `dist\MSMD` folder as a .zip file
+   - Share with users
+   - Windows Defender may flag it initially (common with PyInstaller apps)
+
+#### Linux
+
+1. **Activate your virtual environment:**
+   ```bash
+   source venv/bin/activate
+   ```
+
+2. **Install PyInstaller:**
+   ```bash
+   pip install pyinstaller
+   ```
+
+3. **Build the application:**
+   ```bash
+   pyinstaller MSMD.spec --clean
+   ```
+
+4. **Find your application:**
+   - Location: `dist/MSMD/MSMD`
+   - Size: ~100-150 MB
+   - Run from terminal: `./dist/MSMD/MSMD`
+   - Or make desktop launcher
+
+5. **Distribution:**
+   - Compress the `dist/MSMD` folder: `cd dist && tar -czf MSMD-linux.tar.gz MSMD/`
+   - Share the .tar.gz file
+   - Users need to extract and run: `chmod +x MSMD && ./MSMD`
+
+### The MSMD.spec File
+
+The `MSMD.spec` file configures the PyInstaller build process. It:
+- Bundles `config.ini` and icon files (if present)
+- Includes all Python dependencies
+- Creates platform-appropriate executables
+- On macOS, creates a proper .app bundle with Info.plist
+
+### Build Troubleshooting
+
+#### "Module not found" errors during build
+- Ensure all dependencies are installed: `pip install -r requirements.txt`
+- Try adding missing modules to `hiddenimports` in MSMD.spec
+
+#### Large file size
+- Normal for PyInstaller builds (~90-150 MB)
+- Includes Python runtime + PyQt5 + all dependencies
+- Use UPX compression (enabled by default in MSMD.spec)
+
+#### Application won't launch
+- **macOS**: Right-click → Open (to bypass Gatekeeper)
+- **Windows**: Check Windows Defender logs, add exception if needed
+- **Linux**: Ensure executable permission: `chmod +x MSMD`
+- Check that `config.ini` exists in the same directory as the executable
+
+#### "Config.ini not found" in standalone app
+- Verify `config.ini` is in the project root before building
+- Check the `datas` section in MSMD.spec includes config.ini
+
+#### Missing icons
+- Icons (MSMD32.png, refresh.png, settings.png) are optional
+- App will work without them but buttons won't show icons
+- Add PNG files to project root before building
+
+### Code Signing (Optional)
+
+For professional distribution:
+
+- **macOS**: Use `codesign` and Apple Developer account
+- **Windows**: Use SignTool with code signing certificate
+- **Linux**: Not typically required
+
+### Build Artifacts
+
+After building, you'll find:
+- `dist/` - Contains the final application
+- `build/` - Temporary build files (can be deleted)
+- `*.spec` - Build configuration (keep in repository)
+
 ## Version History
 
 - **1.2.4**: Updated to be compatible with all screen sizes

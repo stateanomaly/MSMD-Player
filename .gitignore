@@ -24,3 +24,8 @@ Thumbs.db
 
 # Application specific
 *.pyc
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
