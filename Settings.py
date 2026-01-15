@@ -25,7 +25,9 @@ class Settings(QWidget):
         self.__UserAbort = True
         
         #-----Widget Settings-----
-        self.setWindowIcon(QIcon('MSMD32.png'))
+        import os
+        if os.path.exists('MSMD32.png'):
+            self.setWindowIcon(QIcon('MSMD32.png'))
         self.setWindowTitle('MSMD Settings')
         
         #Remove Maximize and Minimize buttons 

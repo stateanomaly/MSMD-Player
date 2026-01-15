@@ -175,14 +175,22 @@ class App(QWidget):
         self.portRefreshButton = QPushButton(self)
         self.portRefreshButton.setToolTip('Press to detect port of connected base station')
         self.portRefreshButton.clicked.connect(self.refreshPorts)
-        self.portRefreshButton.setIcon(QIcon('refresh.png'))
-        self.portRefreshButton.setFixedWidth(24)
-        
+        if os.path.exists('refresh.png'):
+            self.portRefreshButton.setIcon(QIcon('refresh.png'))
+            self.portRefreshButton.setFixedWidth(24)
+        else:
+            self.portRefreshButton.setText('⟳')
+            self.portRefreshButton.setFixedWidth(30)
+
         self.settingsButton = QPushButton()
         self.settingsButton.setToolTip('Open the Settings Dialog')
-        self.settingsButton.setIcon(QIcon('settings.png'))
-        self.settingsButton.setMaximumWidth(24)
         self.settingsButton.clicked.connect(self.openSettings)
+        if os.path.exists('settings.png'):
+            self.settingsButton.setIcon(QIcon('settings.png'))
+            self.settingsButton.setMaximumWidth(24)
+        else:
+            self.settingsButton.setText('⚙')
+            self.settingsButton.setMaximumWidth(30)
         
         self.connected = False
         self.refreshPorts()
@@ -269,7 +277,8 @@ class App(QWidget):
         self.setLayout(self.stackedLayout)
         self.setWindowTitle(self.title)
         self.setGeometry(self.left, self.top, self.width, self.height)
-        self.setWindowIcon(QIcon('MSMD32.png'))
+        if os.path.exists('MSMD32.png'):
+            self.setWindowIcon(QIcon('MSMD32.png'))
         self.cleanupEvent.connect(self.cleanupStuff)
         self.show()
         self.bringToFront()
