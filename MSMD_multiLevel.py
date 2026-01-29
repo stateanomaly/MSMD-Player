@@ -108,7 +108,15 @@ class GraphicsView(QGraphicsView):
                 textFromCode = 'enter'
             elif code == 16777217:
                 textFromCode = 'tab'
-            else:     
+            elif code == 16777219:
+                textFromCode = 'backspace'
+            elif code == 16777223:
+                textFromCode = 'delete'
+            elif code == 16777216:
+                textFromCode = 'esc'
+            elif code == 32:
+                textFromCode = 'space'
+            else:
                 textFromCode = chr(code)
         except :
             textFromCode = text
@@ -130,10 +138,16 @@ class GraphicsView(QGraphicsView):
         if(pressedModifiers & Qt.AltModifier):
             modifierTextList.append('alt')
         if(pressedModifiers & Qt.ControlModifier):
-            modifierTextList.append('cmd') # on the mac this is the command key
+            if sys.platform == 'darwin':  # macOS
+                modifierTextList.append('cmd')  # on the mac this is the command key
+            else:  # Linux and Windows
+                modifierTextList.append('ctrl')
         if(pressedModifiers & Qt.MetaModifier):
-            modifierTextList.append('ctrl')# on the mac this is the control key
-        
+            if sys.platform == 'darwin':  # macOS
+                modifierTextList.append('ctrl')  # on the mac this is the control key
+            else:  # Linux and Windows
+                modifierTextList.append('win')
+
         return modifierTextList
     
         
@@ -629,11 +643,15 @@ class App(QWidget):
         if(pressedModifiers & Qt.AltModifier):
             modifierTextList.append('alt')
         if(pressedModifiers & Qt.ControlModifier):
-            #modifierTextList.append('ctrl')
-            modifierTextList.append('cmd') # on the mac this is the command key
+            if sys.platform == 'darwin':  # macOS
+                modifierTextList.append('cmd')  # on the mac this is the command key
+            else:  # Linux and Windows
+                modifierTextList.append('ctrl')
         if(pressedModifiers & Qt.MetaModifier):
-            modifierTextList.append('ctrl')# on the mac this is the control key
-            #modifierTextList.append('win')
+            if sys.platform == 'darwin':  # macOS
+                modifierTextList.append('ctrl')  # on the mac this is the control key
+            else:  # Linux and Windows
+                modifierTextList.append('win')
         return set(modifierTextList) == set(self.currentInputModifiers)
     
     def simplifyModifierList(self, modifierList):
