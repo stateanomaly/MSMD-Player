@@ -7,7 +7,7 @@ Created on Fri Apr 20 18:11:20 2018
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QHBoxLayout, QVBoxLayout, QGridLayout, QComboBox, QLabel, QSpinBox, QGroupBox, QPushButton, QWidget, QFrame, QSpacerItem, QSizePolicy, QCheckBox)
+from PyQt5.QtWidgets import (QHBoxLayout, QVBoxLayout, QGridLayout, QComboBox, QLabel, QSpinBox, QGroupBox, QPushButton, QWidget, QFrame, QCheckBox)
 
 class QHLine(QFrame):
     def __init__(self):
@@ -109,8 +109,6 @@ class Settings(QWidget):
         glayout1.addWidget(self.UpgradeMode, 3, 3)
         
         UpgradeFrame.setLayout(glayout1)
-        
-        space = QSpacerItem(1, 1, QSizePolicy.Fixed, QSizePolicy.Expanding)
         
         glayout2.addWidget(QLabel('Min Power to Move'), 1, 1)
         glayout2.addWidget(self.MinPower, 1, 3)
