@@ -26,7 +26,8 @@ QPushButton, QLabel, QHBoxLayout, QVBoxLayout, QMessageBox, QStackedLayout,
 QGraphicsScene, QGraphicsView, QDesktopWidget, QGraphicsEllipseItem,
 QGraphicsItem)
 from PyQt5.QtGui import QIcon, QImage, QPixmap, QColor, QBrush, QPen
-from PyQt5.QtCore import Qt, QRect, pyqtSignal, QThread
+from PyQt5.QtCore import Qt, QRect, QUrl, pyqtSignal
+from PyQt5.QtMultimedia import QSoundEffect
 #this is the pyserial package (can be installed using pip)
 import serial
 import serial.tools.list_ports
@@ -37,12 +38,6 @@ try:
     import pyautogui
 except Exception:
     pyautogui = None
-try:
-    import pyaudio
-    import wave
-except (ImportError, OSError):
-    pyaudio = None
-    wave = None
 
 def getUserConfigDir():
     """Get the platform-specific user configuration directory."""
@@ -177,8 +172,8 @@ class App(QWidget):
         self.currentHotSpot = None
         self.startTime = None
         self.endTime = None
-        self.soundThreads = []
-        self.audio = None
+        self.completionSound = QSoundEffect(self)
+        self.narrationSound = QSoundEffect(self)
         self.screen = QDesktopWidget().availableGeometry()
         print(self.screen)
         print('width', self.screen.width(), 'height', self.screen.height())
@@ -569,61 +564,33 @@ class App(QWidget):
         self.setWindowTitle(self.title + '       ' + commandString)
         if powerLevel is not None:
             self.setPower(powerLevel)
-    
+
+        self.narrationSound.stop()
+        soundFilename = self.resolveSoundFile('say%s.wav' % self.currentImageNumber)
+        if soundFilename is not None:
+            self.narrationSound.setSource(QUrl.fromLocalFile(soundFilename))
+            self.narrationSound.play()
+
+    def currentLevelFolder(self):
+        if self.numLevels > 0:
+            return self.folderList[self.currentLevel]
+        return self.folderName
+
+    def resolveSoundFile(self, soundFilename):
+        levelSoundFilename = os.path.join(self.currentLevelFolder(), soundFilename)
+        if os.path.isfile(levelSoundFilename):
+            return levelSoundFilename
+        fallbackSoundFilename = os.path.join(self.folderName, soundFilename)
+        if os.path.isfile(fallbackSoundFilename):
+            return fallbackSoundFilename
+        return None
+
     def playSound(self):
-        if pyaudio is None:
+        soundFilename = self.resolveSoundFile('sound%s.wav' % self.currentImageNumber)
+        if soundFilename is None:
             return
-        
-        class SoundThread(QThread):
-            signal = pyqtSignal('PyQt_PyObject')
-            def __init__ (self, soundFilename, audio):
-                super().__init__()
-
-                self.soundFilename = soundFilename
-                self.audio = audio
-                
-            def run (self):
-                
-                #define stream chunk   
-                chunk = 1024  
-
-                #open a wav format music  
-                f = wave.open(self.soundFilename,"rb")  
-                #open stream  
-                stream = self.audio.open(format = self.audio.get_format_from_width(f.getsampwidth()),  
-                                channels = f.getnchannels(),  
-                                rate = f.getframerate(),  
-                                output = True)  
-                #read data  
-                data = f.readframes(chunk)  
-
-                #play stream  
-                while data:  
-                    stream.write(data)  
-                    data = f.readframes(chunk)  
-
-                #stop stream  
-                stream.stop_stream()  
-                stream.close()  
-
-                self.signal.emit(self.soundFilename)
-                
-        soundFilename = '%s%ssound%s.wav'% (self.folderName, os.path.sep, self.currentImageNumber)
-        if not os.path.isfile(soundFilename):
-            return
-        try:
-            if self.audio is None:
-                self.audio = pyaudio.PyAudio()
-            soundThread = SoundThread(soundFilename, self.audio)
-            self.soundThreads.append(soundThread)
-            soundThread.signal.connect(self.soundFinished)
-            soundThread.finished.connect(lambda thread=soundThread: self.soundThreads.remove(thread))
-            soundThread.start() 
-        except:
-            print('something when wrong with the sound thread')
-            
-    def soundFinished (self, soundFile):
-        print('finished playing %s' % soundFile)
+        self.completionSound.setSource(QUrl.fromLocalFile(soundFilename))
+        self.completionSound.play()
         
     def hotSpotClickedHandler(self, itemClicked, modifiers, mouseButton):
                                                     
@@ -738,6 +705,7 @@ class App(QWidget):
     
     def gameCompleted(self):
         self.endTime = time.time()
+        self.narrationSound.stop()
         self.scene.clear()
         self.currentHotSpot = None
         self.currentImageNumber = 0
@@ -829,9 +797,6 @@ class App(QWidget):
         if self.robot:
             for baseStation in self.robot:
                 baseStation.close()
-        if self.audio is not None:
-            self.audio.terminate()
-            self.audio = None
         print('closing')
         
     def createReferenceFile(self):
