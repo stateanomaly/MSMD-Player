@@ -33,12 +33,6 @@ All dependencies are listed in `requirements.txt`:
 - PyQt5 >= 5.15.0
 - pyserial >= 3.5
 - pyautogui >= 0.9.50
-- PyAudio >= 0.2.11
-
-**Note for macOS users**: PyAudio requires PortAudio. Install via Homebrew:
-```bash
-brew install portaudio
-```
 
 ## Installation
 
@@ -147,7 +141,12 @@ The `hotspots.json` file defines interactive elements for each image:
 
 ### Optional Sound Files
 
-Add sound effects by placing WAV files named `sound0.wav`, `sound1.wav`, etc., in your content folder. The number corresponds to the image number.
+Add optional WAV files to your content folder:
+
+- `sound<N>.wav`: played when step N is completed.
+- `say<N>.wav`: spoken instruction played when step N is shown.
+
+For multi-level games, place these files in the level folder. The player falls back to the parent content folder if the file is not found in the current level folder.
 
 ## Configuration
 
@@ -224,9 +223,8 @@ You can create standalone executables for macOS, Windows, and Linux that don't r
 - PyInstaller (install with `pip install pyinstaller`)
 
 **Platform-Specific:**
-- **macOS**: PyAudio requires PortAudio (`brew install portaudio`)
 - **Windows**: No additional requirements
-- **Linux**: PyAudio may require PortAudio development files (`sudo apt-get install portaudio19-dev` on Ubuntu/Debian)
+- **macOS/Linux**: No additional requirements
 
 **Important**: You must build on the target platform. You cannot build a Windows .exe on macOS, or vice versa.
 
@@ -394,13 +392,6 @@ This error should not occur as the config file is created automatically on first
 
 ### "hotspots.json does not exist"
 Ensure your content folder contains a valid `hotspots.json` file with entries for each image.
-
-### PyAudio Installation Fails (macOS)
-Install PortAudio first:
-```bash
-brew install portaudio
-pip install PyAudio
-```
 
 ### Number of Images Doesn't Match Hotspots
 Verify that:

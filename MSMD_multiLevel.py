@@ -26,7 +26,8 @@ QPushButton, QLabel, QHBoxLayout, QVBoxLayout, QMessageBox, QStackedLayout,
 QGraphicsScene, QGraphicsView, QDesktopWidget, QGraphicsEllipseItem,
 QGraphicsItem)
 from PyQt5.QtGui import QIcon, QImage, QPixmap, QColor, QBrush, QPen
-from PyQt5.QtCore import Qt, QRect, pyqtSignal, QThread
+from PyQt5.QtCore import Qt, QRect, QUrl, pyqtSignal
+from PyQt5.QtMultimedia import QSoundEffect
 #this is the pyserial package (can be installed using pip)
 import serial
 import serial.tools.list_ports
@@ -35,11 +36,8 @@ import configparser
 from Settings import Settings
 try:
     import pyautogui
-except :
-    pass
-import pyaudio
-import wave
-import glob
+except Exception:
+    pyautogui = None
 
 def getUserConfigDir():
     """Get the platform-specific user configuration directory."""
@@ -87,7 +85,7 @@ class GraphicsView(QGraphicsView):
     itemClickedEvent = pyqtSignal(QGraphicsItem, Qt.KeyboardModifiers, Qt.MouseButton)
     keyPressed = pyqtSignal(int, str, Qt.KeyboardModifiers)
     
-    def __inti__(self, parent=None):
+    def __init__(self, parent=None):
         super(GraphicsView, self).__init__(parent)
         
     def mousePressEvent(self, event):
@@ -164,6 +162,7 @@ class App(QWidget):
         self.height = 100
         self.folderName = ''
         self.imageList = []
+        self.scaledPixmapList = []
         self.numImages = 0
         self.currentImageNumber = 0
         self.currentTotalImageNumber = 0
@@ -173,6 +172,8 @@ class App(QWidget):
         self.currentHotSpot = None
         self.startTime = None
         self.endTime = None
+        self.completionSound = QSoundEffect(self)
+        self.narrationSound = QSoundEffect(self)
         self.screen = QDesktopWidget().availableGeometry()
         print(self.screen)
         print('width', self.screen.width(), 'height', self.screen.height())
@@ -325,9 +326,6 @@ class App(QWidget):
     
     def openSettings(self):
         try: 
-            SettingsIn = {'upgradeTrigger': 'hotspot',
-               'upgradeMode': 'left',
-               'minPowerToMove': '80'}
             self.settingsWindow = Settings(self.robotSettings)
             self.settingsWindow.Closing.connect(self.settingsClosed)
             self.settingsWindow.show()
@@ -367,21 +365,28 @@ class App(QWidget):
         if(comPorts):
             self.robot = []
             self.portDisplayText = ''
-            for i, port in enumerate(comPorts):
-                self.robot.append(serial.Serial(port))
-                self.robot[i].baudrate = 115200
-                self.robot[i].timeout = 0.05
+            for port in comPorts:
+                try:
+                    baseStation = serial.Serial(port)
+                except (serial.SerialException, OSError):
+                    continue
+                baseStation.baudrate = 115200
+                baseStation.timeout = 0.05
+                self.robot.append(baseStation)
                 self.portDisplayText += (port + '  ')
                 
             self.portDisplay.setText(self.portDisplayText)
-            self.connected = True
+            self.connected = len(self.robot) > 0
         else:
             self.robot = []
+            self.portDisplay.setText('')
             self.connected = False
         
     def folderButtonClicked(self):
         self.folderName = QFileDialog.getExistingDirectory(self, "Select Folder Location for Recorded Content")
         print(self.folderName)
+        if self.folderName == '':
+            return
         if os.path.isdir(self.folderName):
             self.numLevels = 0
             self.numTotalImages = 0
@@ -391,7 +396,7 @@ class App(QWidget):
             for name in self.listOfFilesInSelectedFolder:
                 fullFileName = os.path.join(self.folderName, name)
                 if os.path.isdir(fullFileName):
-                    result = self.loadLevel(fullFileName)
+                    result = self.countLevel(fullFileName)
                     if(result<0):
                         return
                     self.folderList.append(fullFileName)
@@ -401,7 +406,9 @@ class App(QWidget):
 
             if(self.numLevels>0):
                 #multiLevel game selected
-                self.loadLevel(self.folderList[0])
+                result = self.loadLevel(self.folderList[0])
+                if(result<0):
+                    return
                 self.numLevelsDisplay.setText(str(self.numLevels))
             else:
                 result = self.loadLevel(self.folderName)
@@ -418,7 +425,28 @@ class App(QWidget):
             self.selectedFolder.setText(self.folderName)
         else:
             QMessageBox.warning(self, 'Folder Error!', 'The folder does not exist!\nPlease select a valid folder', QMessageBox.Ok)
-        
+
+    def countLevel(self, levelToLoad):
+        try:
+            print('Trying to count '+levelToLoad)
+            print('%s' % levelToLoad+os.path.sep+self.hotSpotFilename)
+            with open(levelToLoad+os.path.sep+self.hotSpotFilename, 'r') as hotSpotFile:
+                hotSpotDict = json.load(hotSpotFile)
+            numHotSpotRecords = len(hotSpotDict)
+        except IOError:
+            QMessageBox.critical(self, 'Error: No hotspots.json', 'hotspots.json does not exist\nA Hot Spot file is required to play the game. Please select a complete and valid content folder', QMessageBox.Ok)
+            self.selectedFolder.setText('Error: No hotspots.json')
+            return -1
+        try:
+            numImages = len([imfile for imfile in os.listdir(levelToLoad) if imfile.endswith('.png')])-1
+        except IOError:
+            QMessageBox.critical(self, 'Error: images reading', 'Images could not be read\nPlease select a complete and valid content folder', QMessageBox.Ok)
+            return -1
+        if(numImages != numHotSpotRecords):
+            QMessageBox.critical(self, 'Image Count Error', 'Error: number of images in level "'+str(levelToLoad)+'" do not match the number of hot spot records', QMessageBox.Ok)
+            return -1
+        return numImages
+
     def loadLevel(self, levelToLoad):
         try:
             print('Trying to load '+levelToLoad)
@@ -442,13 +470,17 @@ class App(QWidget):
             for imageFile in sorted((imfile for imfile in os.listdir(levelToLoad) if imfile.endswith('.png'))):
             
                 self.imageList.append(QImage(levelToLoad+os.path.sep+imageFile))
-                
+
         except IOError:
             QMessageBox.critical(self, 'Error: images reading', 'Images could not be read\nPlease select a complete and valid content folder', QMessageBox.Ok)
             return -1
+        self.scaledPixmapList = [
+            QPixmap.fromImage(image).copy(QRect(0,0,1920,1020)).scaled(self.screen.width(), self.screen.height(), aspectRatioMode=Qt.IgnoreAspectRatio)
+            for image in self.imageList
+        ]
         self.numImages = len(self.imageList)-1
         if(self.numImages != self.numHotSpotRecords):
-            QMessageBox.critical(self, 'Error: number of images in level "'+str(levelToLoad)+'" do not match the number of hot spot records', QMessageBox.Ok)
+            QMessageBox.critical(self, 'Image Count Error', 'Error: number of images in level "'+str(levelToLoad)+'" do not match the number of hot spot records', QMessageBox.Ok)
             return -1
         return self.numImages
 
@@ -464,16 +496,16 @@ class App(QWidget):
         self.startTime = time.time()
         
     def paintImageIndex(self, imageNumber):
+        powerLevel = None
         if(self.upgradeTrigger == 'hotspot'):
-            powerLevel = (self.currentTotalImageNumber/(self.numTotalImages-1))*100
+            powerLevel = (self.currentTotalImageNumber/max(self.numTotalImages-1, 1))*100
             print('power:', powerLevel, '  currentTotalImageNum:', self.currentTotalImageNumber, '  numTotalImages:', self.numTotalImages)
-            self.setPower(powerLevel)
-            
+
         self.scene.clear()
         print('current image number:', imageNumber)
         self.nextHotSpotInput = self.hotSpotDict[str(self.currentImageNumber).zfill(6)]
         print('nextHotSpotInput', self.nextHotSpotInput)
-        self.currentPixmap = QPixmap.fromImage(self.imageList[imageNumber]).copy(QRect(0,0,1920,1020)).scaled(self.screen.width(), self.screen.height(), aspectRatioMode=Qt.IgnoreAspectRatio)
+        self.currentPixmap = self.scaledPixmapList[imageNumber]
         
         self.scene.addPixmap(self.currentPixmap)
         
@@ -525,61 +557,40 @@ class App(QWidget):
             commandString += self.nextHotSpotInput['name']
             self.currentHotSpot = 'not a hotspot'
         else:
-            QMessageBox.critical(self, 'Error: hotSpotInput type is incorrect. got: "'+self.nextHotSpotInput['type']+'"  expected: "key" or "mouse"', QMessageBox.Ok)
-        
+            QMessageBox.critical(self, 'Hotspot Type Error', 'Error: hotSpotInput type is incorrect. got: "'+self.nextHotSpotInput['type']+'"  expected: "key" or "mouse"', QMessageBox.Ok)
+
+            commandString = ''
+
         self.setWindowTitle(self.title + '       ' + commandString)
-    
+        if powerLevel is not None:
+            self.setPower(powerLevel)
+
+        self.narrationSound.stop()
+        soundFilename = self.resolveSoundFile('say%s.wav' % self.currentImageNumber)
+        if soundFilename is not None:
+            self.narrationSound.setSource(QUrl.fromLocalFile(soundFilename))
+            self.narrationSound.play()
+
+    def currentLevelFolder(self):
+        if self.numLevels > 0:
+            return self.folderList[self.currentLevel]
+        return self.folderName
+
+    def resolveSoundFile(self, soundFilename):
+        levelSoundFilename = os.path.join(self.currentLevelFolder(), soundFilename)
+        if os.path.isfile(levelSoundFilename):
+            return levelSoundFilename
+        fallbackSoundFilename = os.path.join(self.folderName, soundFilename)
+        if os.path.isfile(fallbackSoundFilename):
+            return fallbackSoundFilename
+        return None
+
     def playSound(self):
-        
-        class SoundThread(QThread):
-            signal = pyqtSignal('PyQt_PyObject')
-            def __init__ (self, soundFilename):
-                super().__init__()
-                
-                self.soundFilename = soundFilename
-                
-            def run (self):
-                
-                #define stream chunk   
-                chunk = 1024  
-
-                #open a wav format music  
-                f = wave.open(self.soundFilename,"rb")  
-                #instantiate PyAudio  
-                p = pyaudio.PyAudio()  
-                #open stream  
-                stream = p.open(format = p.get_format_from_width(f.getsampwidth()),  
-                                channels = f.getnchannels(),  
-                                rate = f.getframerate(),  
-                                output = True)  
-                #read data  
-                data = f.readframes(chunk)  
-
-                #play stream  
-                while data:  
-                    stream.write(data)  
-                    data = f.readframes(chunk)  
-
-                #stop stream  
-                stream.stop_stream()  
-                stream.close()  
-
-                #close PyAudio  
-                p.terminate()
-                self.signal.emit(soundFilename)
-                
-        soundFilename = '%s%ssound%s.wav'% (self.folderName, os.path.sep, self.currentImageNumber)
-        if not os.path.isfile(soundFilename):
+        soundFilename = self.resolveSoundFile('sound%s.wav' % self.currentImageNumber)
+        if soundFilename is None:
             return
-        try:
-            self.soundThread = SoundThread(soundFilename)
-            self.soundThread.signal.connect(self.soundFinished)
-            self.soundThread.start() 
-        except:
-            print('something when wrong with the sound thread')
-            
-    def soundFinished (self, soundFile):
-        print('finished playing %s' % soundFile)
+        self.completionSound.setSource(QUrl.fromLocalFile(soundFilename))
+        self.completionSound.play()
         
     def hotSpotClickedHandler(self, itemClicked, modifiers, mouseButton):
                                                     
@@ -600,21 +611,23 @@ class App(QWidget):
                         self.paintImageIndex(self.currentImageNumber)
                 else:
                     #print('wrong mouse button clicked')
-                    a = 0
+                    pass
             else:
                 #print("modifiers don't match")
-                a = 0
+                pass
         else:
             #print('wrong spot clicked')
-            a = 0
+            pass
     
     def checkButtonMatch(self, pressedMouseButton):
         if pressedMouseButton == Qt.LeftButton:
             pressedMouseButtonString = 'left'
-        if pressedMouseButton == Qt.RightButton:
+        elif pressedMouseButton == Qt.RightButton:
             pressedMouseButtonString = 'right'
-        if pressedMouseButton == Qt.MiddleButton:
+        elif pressedMouseButton == Qt.MiddleButton:
             pressedMouseButtonString = 'middle'
+        else:
+            return False
         
         return self.currentMouseButton == pressedMouseButtonString
         
@@ -634,7 +647,7 @@ class App(QWidget):
                 self.paintImageIndex(self.currentImageNumber)
         else:
             #print('wrong key or key combination pressed')
-            a = 0
+            pass
             
     def checkModifierMatch(self, pressedModifiers):
         modifierTextList = []
@@ -676,7 +689,7 @@ class App(QWidget):
     def levelCompleted(self):
         print('completed level: ', self.currentLevel+1)
         if(self.upgradeTrigger == 'level'):
-            powerLevel = (self.currentLevel/(self.numLevels-1))*100
+            powerLevel = (self.currentLevel/max(self.numLevels-1, 1))*100
             self.setPower(powerLevel)
 
         self.currentLevel += 1
@@ -684,17 +697,21 @@ class App(QWidget):
             self.gameCompleted()
         else:
             self.currentImageNumber = 0
-            self.loadLevel(self.folderList[self.currentLevel])
+            if self.loadLevel(self.folderList[self.currentLevel]) < 0:
+                self.stackedLayout.setCurrentIndex(0)
+                self.showNormal()
+                return
             self.paintImageIndex(0)
     
     def gameCompleted(self):
         self.endTime = time.time()
+        self.narrationSound.stop()
         self.scene.clear()
         self.currentHotSpot = None
         self.currentImageNumber = 0
         self.currentTotalImageNumber = 0
         self.currentPixmap = None
-        self.currentPixmap = QPixmap.fromImage(self.imageList[self.numImages]).copy(QRect(0,0,1920,1020)).scaled(self.screen.width(), self.screen.height(), aspectRatioMode=Qt.IgnoreAspectRatio)
+        self.currentPixmap = self.scaledPixmapList[self.numImages]
         self.scene.addPixmap(self.currentPixmap)
         buttonReply = QMessageBox.information(self, 'You Win!', 'Congradulations, You Won!\nYou completed the game in ' + "%.2f" % (self.endTime-self.startTime) + ' seconds', QMessageBox.Ok | QMessageBox.Close)
         if buttonReply == QMessageBox.Ok:
@@ -707,13 +724,14 @@ class App(QWidget):
             self.currentLevel = 0
     
     def findPorts(self):
-        ports = glob.glob('/dev/tty.SLAB_USB*')
-        
-        comPortsList = ports
-        #microcontrollerPort = None
-        #for port in ports:
-        #    if 'Silicon Labs' in str(port[1]):
-        #        comPortsList.append(port[0])
+        comPortsList = []
+        matchTerms = ('SLAB', 'Silicon Labs', 'CP210')
+        for port in serial.tools.list_ports.comports():
+            description = port.description or ''
+            hwid = port.hwid or ''
+            portText = (description + ' ' + hwid).lower()
+            if any(term.lower() in portText for term in matchTerms):
+                comPortsList.append(port.device)
         return comPortsList
     
     def setPower(self, powerLevel):
@@ -746,7 +764,7 @@ class App(QWidget):
             rightPower = leftPower
         elif(mode == "distance"):
             #add fuel to the robot "tank"
-            a=None                             
+            pass
         else:
             raise ValueError('upgradeMode in config.ini does not match any accepted value')
         
@@ -782,6 +800,9 @@ class App(QWidget):
         print('closing')
         
     def createReferenceFile(self):
+        if pyautogui is None:
+            QMessageBox.warning(self, 'Reference Creator Unavailable', 'pyautogui is required to create reference files.', QMessageBox.Ok)
+            return
         referenceFolder = QFileDialog.getExistingDirectory(self, "Select Folder Location for Reference")
         self.startTime = time.time()
         if os.path.isdir(referenceFolder):
@@ -827,7 +848,7 @@ class App(QWidget):
                     
                     time.sleep(0.05)
                     imageName = str(self.currentImageNumber).zfill(6)
-                    pyautogui.screenshot(levelFolderName+os.path.sep+imageName+'.png')
+                    pyautogui.screenshot(referenceFolder+os.path.sep+imageName+'.png')
                     
                     self.currentImageNumber += 1
                     self.currentTotalImageNumber += 1
