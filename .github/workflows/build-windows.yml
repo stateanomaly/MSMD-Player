@@ -1,0 +1,33 @@
+name: Build Windows executable
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build one-file executable
+        run: pyinstaller --onefile --windowed --name MSMD --add-data "config.ini;." MSMD_multiLevel.py
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: MSMD-windows
+          path: dist/MSMD.exe
+          if-no-files-found: error
