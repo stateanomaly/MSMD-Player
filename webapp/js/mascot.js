@@ -87,6 +87,7 @@ export class MascotAnimator {
     this.frameIndex = 0;
     this.lastFrameAt = 0;
     this.animationFrame = 0;
+    this.pendingLoop = "";
     this.preloadPromise = null;
 
     this.tick = this.tick.bind(this);
@@ -137,6 +138,7 @@ export class MascotAnimator {
     this.clipName = "";
     this.frameIndex = 0;
     this.lastFrameAt = 0;
+    this.pendingLoop = "";
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
@@ -154,6 +156,7 @@ export class MascotAnimator {
   }
 
   dock() {
+    this.pendingLoop = "";
     this.imageElement.classList.remove("is-guiding");
     this.imageElement.style.removeProperty("left");
     this.imageElement.style.removeProperty("top");
@@ -167,7 +170,14 @@ export class MascotAnimator {
       return;
     }
 
+    if (this.mode === "once" && mode === "loop") {
+      this.pendingLoop = clipName;
+      this.imageElement.hidden = false;
+      return;
+    }
+
     if (this.mode === mode && this.clipName === clipName && this.animationFrame) {
+      this.pendingLoop = "";
       this.imageElement.hidden = false;
       return;
     }
@@ -180,6 +190,7 @@ export class MascotAnimator {
     this.clipName = clipName;
     this.frameIndex = 0;
     this.lastFrameAt = 0;
+    this.pendingLoop = "";
     this.imageElement.src = frames[0];
     this.imageElement.hidden = false;
     this.animationFrame = requestAnimationFrame(this.tick);
@@ -203,6 +214,13 @@ export class MascotAnimator {
         if (this.mode === "loop") {
           this.frameIndex = 0;
         } else {
+          const pendingLoop = this.pendingLoop;
+          if (pendingLoop) {
+            this.pendingLoop = "";
+            this.mode = "stopped";
+            this.start(pendingLoop, "loop");
+            return;
+          }
           this.stop();
           return;
         }
