@@ -191,6 +191,8 @@ function beginStep(stepIndex, options = {}) {
   if (!step) {
     return;
   }
+  const total = (questForRenderer?.steps || []).length;
+  console.log(`[guided] step_begin ${step.id} (${stepIndex + 1}/${total})`);
   cua?.beginStep(step);
   if (!options.skipSend) {
     tcpClient?.beginStep(step.id);
@@ -210,13 +212,21 @@ function startTcp() {
   tcpClient.setQuestLoad(questForWire);
   tcpClient.setCurrentStepId(firstStepId());
 
+  tcpClient.on("connect", () => console.log("[guided] connected to addon"));
+  tcpClient.on("disconnect", () => console.log("[guided] disconnected, retrying"));
+
   tcpClient.on("message", (message) => {
     cua?.handleMessage(message);
     if (overlay && !overlay.isDestroyed()) {
       overlay.webContents.send("guided:event", message);
     }
 
-    if (message.type === "step_verified") {
+    if (message.type === "hello") {
+      console.log(`[guided] addon hello blender=${message.blender_version}`);
+    } else if (message.type === "quest_loaded") {
+      console.log(`[guided] quest_loaded ok=${message.ok}`);
+    } else if (message.type === "step_verified") {
+      console.log(`[guided] step_verified ${message.step_id}`);
       const step = currentStep();
       if (!step || message.step_id !== step.id) {
         return;
@@ -225,6 +235,10 @@ function startTcp() {
       if (nextIndex < (questForRenderer.steps || []).length) {
         beginStep(nextIndex);
       }
+    } else if (message.type === "deviation") {
+      console.log(`[guided] deviation ${message.op_id} severity=${message.severity}`);
+    } else if (message.type === "quest_complete") {
+      console.log(`[guided] quest_complete ${message.quest_id}`);
     } else if (message.type === "error") {
       console.warn(`Addon error: ${message.message}`);
     }
@@ -263,7 +277,10 @@ function startCua(config) {
     logger: console,
     captureScreenshot: () => captureBlenderWindow({ bounds: currentBounds, logger: console }),
   });
-  cua.on("steer", (payload) => overlay?.webContents.send("guided:steer", payload));
+  cua.on("steer", (payload) => {
+    console.log(`[guided] steer "${payload.steerLine}"`);
+    overlay?.webContents.send("guided:steer", payload);
+  });
   cua.on("replay_narration", ({ stepId }) => {
     overlay?.webContents.send("guided:event", { type: "replay_narration", step_id: stepId });
   });
