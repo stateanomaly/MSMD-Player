@@ -5,7 +5,7 @@ import { calculateMascotGuideRect, MascotAnimator } from "./mascot.js";
 
 const SOURCE_WIDTH = 1920;
 const SOURCE_HEIGHT = 1080;
-const WELCOME_NARRATION_TIMEOUT_MS = 14000;
+const WELCOME_NARRATION_TIMEOUT_MS = 16000;
 const PRAISE_NARRATION_DELAY_MS = 900;
 const WIN_VOICE_DELAY_MS = 400;
 const VOICE_BASE_PATH = "./assets/voice";
@@ -51,6 +51,10 @@ let pendingNarrationCleanup = null;
 let pendingStepNarrationDelayMs = 0;
 let pendingWinVoiceTimer = 0;
 let welcomeNarrationGate = null;
+let openingEntranceToken = 0;
+let openingEntrancePending = false;
+let openingWelcomeTimer = 0;
+let openingWelcomeCleanup = null;
 let lastLevelupVoice = "";
 
 function assetUrl(level, fileName) {
@@ -121,6 +125,17 @@ function clearPendingWinVoice() {
   pendingWinVoiceTimer = 0;
 }
 
+function clearOpeningWelcomeWait() {
+  if (openingWelcomeCleanup) {
+    openingWelcomeCleanup();
+    openingWelcomeCleanup = null;
+  }
+  if (openingWelcomeTimer) {
+    window.clearTimeout(openingWelcomeTimer);
+    openingWelcomeTimer = 0;
+  }
+}
+
 function cancelPendingNarration({ stopAudio = false } = {}) {
   narrationToken += 1;
   if (pendingNarrationTimer) {
@@ -136,7 +151,19 @@ function cancelPendingNarration({ stopAudio = false } = {}) {
   }
 }
 
+function cancelOpeningEntrance(options = {}) {
+  openingEntranceToken += 1;
+  openingEntrancePending = false;
+  clearOpeningWelcomeWait();
+  welcomeNarrationGate = null;
+  if (options.stopWelcome) {
+    audio.stopVoice();
+  }
+  mascot.cancelEntrance({ snap: options.snapMascot });
+}
+
 function stopAllAudioAndTimers() {
+  cancelOpeningEntrance();
   cancelPendingNarration({ stopAudio: true });
   clearPendingWinVoice();
   pendingStepNarrationDelayMs = 0;
@@ -212,8 +239,11 @@ function scheduleStepNarration(level, stepIndex, options = {}) {
   }
 }
 
-function playIntroAudio() {
+function playStartCue() {
   audio.playSfx(sfxUrl("start.mp3"));
+}
+
+function playWelcomeAudio() {
   return audio.playVoice(voiceUrl("welcome.mp3"));
 }
 
@@ -393,7 +423,19 @@ function renderStepMascot(step, options = {}) {
 
   const rect = targetRect ? calculateMascotGuideRect(playSurfaceRect(), targetRect) : null;
   if (!rect) {
-    mascot.stop();
+    if (!mascot.isEntranceActive()) {
+      mascot.stop();
+    }
+    return;
+  }
+
+  if (options.entrance) {
+    startOpeningEntrance(rect);
+    return;
+  }
+
+  if (mascot.isEntranceActive()) {
+    mascot.updateEntranceTarget(rect);
     return;
   }
 
@@ -500,11 +542,22 @@ function handleStep({ level, levelIndex, stepIndex, stepKey, totalLevels }) {
     input.setEnabled(false);
     return;
   }
+  const shouldPlayOpeningEntrance =
+    openingEntrancePending && welcomeNarrationGate?.levelIndex === levelIndex && welcomeNarrationGate.stepIndex === stepIndex;
   if (stepIndex === 0) {
-    mascot.prepareLevelEntry();
+    if (!shouldPlayOpeningEntrance) {
+      mascot.prepareLevelEntry();
+    }
+    renderStepMascot(step, { entrance: shouldPlayOpeningEntrance });
+  } else {
+    renderStepMascot(step);
   }
-  renderStepMascot(step);
   input.setEnabled(true);
+  if (shouldPlayOpeningEntrance) {
+    cancelPendingNarration();
+    playSurface.focus({ preventScroll: true });
+    return;
+  }
   scheduleStepNarration(level, stepIndex, {
     delayMs: takeNextStepNarrationDelay(),
     afterAudio: welcomeNarrationGate?.levelIndex === levelIndex && welcomeNarrationGate.stepIndex === stepIndex
@@ -516,6 +569,7 @@ function handleStep({ level, levelIndex, stepIndex, stepKey, totalLevels }) {
 }
 
 function handleCorrect({ level, stepIndex }) {
+  cancelOpeningEntrance({ stopWelcome: true, snapMascot: true });
   cancelPendingNarration({ stopAudio: true });
   welcomeNarrationGate = null;
   queueNextStepNarrationDelay(PRAISE_NARRATION_DELAY_MS);
@@ -556,7 +610,121 @@ function handleLayoutChange(options = {}) {
   if (exitConfirmOpen) {
     return;
   }
-  renderStepMascot(currentStep, { snap: options.snapMascot });
+  if (mascot.isEntranceActive()) {
+    renderStepMascot(currentStep);
+    return;
+  }
+  const shouldPlayOpeningEntrance =
+    openingEntrancePending &&
+    welcomeNarrationGate &&
+    engine?.currentLevelIndex === welcomeNarrationGate.levelIndex &&
+    engine?.currentStepIndex === welcomeNarrationGate.stepIndex;
+  renderStepMascot(currentStep, {
+    entrance: shouldPlayOpeningEntrance,
+    snap: options.snapMascot,
+  });
+}
+
+function beginOpeningEntrance() {
+  openingEntranceToken += 1;
+  openingEntrancePending = true;
+  clearOpeningWelcomeWait();
+  welcomeNarrationGate = {
+    levelIndex: 0,
+    stepIndex: 0,
+    audioElement: null,
+  };
+}
+
+function isOpeningGateCurrent(token) {
+  return (
+    token === openingEntranceToken &&
+    openingEntrancePending &&
+    welcomeNarrationGate &&
+    engine?.currentLevelIndex === welcomeNarrationGate.levelIndex &&
+    engine?.currentStepIndex === welcomeNarrationGate.stepIndex &&
+    isGameplayActive() &&
+    !exitConfirmOpen
+  );
+}
+
+function finishOpeningWelcomeWait(token, options = {}) {
+  clearOpeningWelcomeWait();
+  if (!isOpeningGateCurrent(token)) {
+    return;
+  }
+  if (options.stopWelcome) {
+    audio.stopVoice();
+  }
+  mascot.finishEntranceToGuide();
+}
+
+function waitForOpeningWelcome(audioElement, token) {
+  clearOpeningWelcomeWait();
+
+  let settled = false;
+  const finish = (options = {}) => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    audioElement.removeEventListener("ended", finish);
+    if (openingWelcomeTimer) {
+      window.clearTimeout(openingWelcomeTimer);
+      openingWelcomeTimer = 0;
+    }
+    openingWelcomeCleanup = null;
+    finishOpeningWelcomeWait(token, options);
+  };
+
+  openingWelcomeCleanup = () => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    audioElement.removeEventListener("ended", finish);
+  };
+  audioElement.addEventListener("ended", finish, { once: true });
+  openingWelcomeTimer = window.setTimeout(() => finish({ stopWelcome: true }), WELCOME_NARRATION_TIMEOUT_MS);
+
+  if (audioElement.ended) {
+    finish();
+  }
+}
+
+function startOpeningEntrance(guideRect) {
+  if (!openingEntrancePending || !welcomeNarrationGate || !guideRect) {
+    return;
+  }
+
+  if (mascot.isEntranceActive()) {
+    mascot.updateEntranceTarget(guideRect);
+    return;
+  }
+
+  const token = openingEntranceToken;
+  mascot.startEntrance(guideRect, {
+    onSpeechStart: () => {
+      if (!isOpeningGateCurrent(token)) {
+        return;
+      }
+      const audioElement = playWelcomeAudio();
+      welcomeNarrationGate.audioElement = audioElement;
+      waitForOpeningWelcome(audioElement, token);
+    },
+    onComplete: () => {
+      if (!isOpeningGateCurrent(token)) {
+        return;
+      }
+      openingEntrancePending = false;
+      clearOpeningWelcomeWait();
+      welcomeNarrationGate = null;
+      scheduleStepNarration(engine.currentLevel, engine.currentStepIndex, {
+        delayMs: takeNextStepNarrationDelay(),
+      });
+      playSurface.focus({ preventScroll: true });
+    },
+  });
 }
 
 async function loadManifest() {
@@ -599,11 +767,8 @@ async function startGame() {
   startScreen.hidden = true;
   gameScreen.hidden = false;
   showExitButton();
-  welcomeNarrationGate = {
-    levelIndex: 0,
-    stepIndex: 0,
-    audioElement: playIntroAudio(),
-  };
+  beginOpeningEntrance();
+  playStartCue();
   engine.start();
 }
 
@@ -615,6 +780,8 @@ function playAgain() {
   mascot.stop();
   mascot.dock();
   showExitButton();
+  beginOpeningEntrance();
+  playStartCue();
   engine.start();
 }
 

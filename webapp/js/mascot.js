@@ -6,6 +6,14 @@ const GUIDE_MAX_SIZE = 240;
 const GUIDE_GAP = 10;
 const CELEBRATION_LAP_MS = 6000;
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const ENTRANCE_SPIRAL_MS = 2200;
+const ENTRANCE_PUSH_MS = 800;
+const ENTRANCE_PULL_MS = 720;
+const ENTRANCE_REDUCED_FADE_MS = 240;
+const ENTRANCE_SPIRAL_TURNS = 1.75;
+const ENTRANCE_HOLD_SCALE = 1.25;
+const ENTRANCE_PUSH_SCALE = 1.6;
+const ENTRANCE_PUSH_OVERSHOOT_SCALE = 1.68;
 const CLIPS = {
   idle: 48,
   wave: 40,
@@ -27,6 +35,11 @@ function easeInCubic(value) {
 
 function easeOutCubic(value) {
   return 1 - (1 - value) ** 3;
+}
+
+function easeOutBack(value, overshoot = 1.18) {
+  const shifted = value - 1;
+  return 1 + (overshoot + 1) * shifted ** 3 + overshoot * shifted ** 2;
 }
 
 function easeInOutCubic(value) {
@@ -74,6 +87,13 @@ function rectFromCenter(center, width, height) {
   };
 }
 
+function viewportCenter() {
+  return {
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+  };
+}
+
 function quadraticPoint(start, control, end, amount) {
   const inverse = 1 - amount;
   return {
@@ -86,6 +106,22 @@ function quadraticDerivative(start, control, end, amount) {
   return {
     x: 2 * (1 - amount) * (control.x - start.x) + 2 * amount * (end.x - control.x),
     y: 2 * (1 - amount) * (control.y - start.y) + 2 * amount * (end.y - control.y),
+  };
+}
+
+function bankFromVector(deltaX, deltaY, maxDegrees = 14) {
+  const distance = Math.hypot(deltaX, deltaY);
+  if (distance <= 0.001) {
+    return 0;
+  }
+  return clamp((deltaX / distance) * maxDegrees, -maxDegrees, maxDegrees);
+}
+
+function stepSpring(value, velocity, target, dtSeconds, stiffness = 520, damping = 26) {
+  const nextVelocity = (velocity + (target - value) * stiffness * dtSeconds) * Math.exp(-damping * dtSeconds);
+  return {
+    value: value + nextVelocity * dtSeconds,
+    velocity: nextVelocity,
   };
 }
 
@@ -181,12 +217,16 @@ export class MascotAnimator {
     this.visualRect = null;
     this.currentGuideRect = null;
     this.flight = null;
+    this.entrance = null;
+    this.visualScale = 1;
+    this.visualRotation = 0;
     this.nextGuideStartsOffscreen = false;
     this.celebrationStartedAt = 0;
 
     this.tick = this.tick.bind(this);
     this.tickFlight = this.tickFlight.bind(this);
     this.tickCelebration = this.tickCelebration.bind(this);
+    this.tickEntrance = this.tickEntrance.bind(this);
   }
 
   preload() {
@@ -233,13 +273,16 @@ export class MascotAnimator {
     this.nextGuideStartsOffscreen = true;
   }
 
-  stopMotion() {
+  stopMotion(options = {}) {
     if (this.motionFrame) {
       cancelAnimationFrame(this.motionFrame);
       this.motionFrame = 0;
     }
     this.motionMode = "";
     this.flight = null;
+    if (!options.keepEntrance) {
+      this.entrance = null;
+    }
     this.celebrationStartedAt = 0;
   }
 
@@ -257,6 +300,141 @@ export class MascotAnimator {
     this.imageElement.hidden = true;
     this.imageElement.removeAttribute("src");
     this.imageElement.classList.remove("is-guiding", "is-celebrating");
+  }
+
+  isEntranceActive() {
+    return Boolean(this.entrance);
+  }
+
+  startEntrance(targetRect, options = {}) {
+    if (!targetRect) {
+      return false;
+    }
+
+    this.stopMotion();
+    const guideRect = copyRect(targetRect);
+    const reduced = prefersReducedMotion();
+
+    this.currentGuideRect = guideRect;
+    this.nextGuideStartsOffscreen = false;
+    this.imageElement.classList.add("is-guiding");
+    this.imageElement.classList.remove("is-celebrating");
+    this.loop("idle", { force: true });
+
+    this.entrance = {
+      targetRect: guideRect,
+      reduced,
+      phase: reduced ? "fade" : "spiral",
+      startedAt: 0,
+      lastTickAt: 0,
+      holdStartedAt: 0,
+      speechStarted: false,
+      rotation: 0,
+      rotationVelocity: 0,
+      onSpeechStart: options.onSpeechStart || null,
+      onComplete: options.onComplete || null,
+    };
+
+    if (reduced) {
+      this.motionMode = "entrance";
+      this.applyBox(guideRect, 1, 0, { opacity: 0 });
+      this.motionFrame = requestAnimationFrame(this.tickEntrance);
+      return true;
+    }
+
+    const startCenter = this.entranceSpiralPoint(0, guideRect);
+    this.motionMode = "entrance";
+    this.applyBox(rectFromCenter(startCenter, guideRect.width, guideRect.height), 0.5, 0);
+    this.motionFrame = requestAnimationFrame(this.tickEntrance);
+    return true;
+  }
+
+  updateEntranceTarget(rect) {
+    if (!this.entrance || !rect) {
+      return false;
+    }
+
+    const targetRect = copyRect(rect);
+    this.entrance.targetRect = targetRect;
+    this.currentGuideRect = targetRect;
+
+    if (this.entrance.reduced && this.entrance.phase === "hold") {
+      this.applyBox(targetRect, 1, 0);
+      return true;
+    }
+
+    if (this.entrance.phase === "exit" && this.motionMode === "flight" && this.flight) {
+      const onComplete = this.flight.onComplete;
+      this.startFlight(this.visualRect || targetRect, targetRect, {
+        fromScale: this.visualScale,
+        toScale: 1,
+        scaleDelayMs: 80,
+        preserveEntrance: true,
+        onComplete,
+      });
+    }
+
+    return true;
+  }
+
+  cancelEntrance(options = {}) {
+    if (!this.entrance) {
+      return false;
+    }
+
+    const targetRect = this.entrance.targetRect ? copyRect(this.entrance.targetRect) : null;
+    this.stopMotion();
+
+    if (options.snap && targetRect) {
+      this.imageElement.classList.add("is-guiding");
+      this.imageElement.classList.remove("is-celebrating");
+      this.applyBox(targetRect, 1, 0);
+      this.currentGuideRect = targetRect;
+      this.loop("idle");
+    }
+
+    return true;
+  }
+
+  finishEntranceToGuide() {
+    const entrance = this.entrance;
+    if (!entrance) {
+      return false;
+    }
+
+    const targetRect = copyRect(entrance.targetRect);
+    const onComplete = entrance.onComplete;
+
+    if (entrance.reduced) {
+      this.applyBox(targetRect, 1, 0);
+      this.stopMotion();
+      this.currentGuideRect = targetRect;
+      if (onComplete) {
+        onComplete();
+      }
+      return true;
+    }
+
+    entrance.phase = "exit";
+    if (this.motionFrame) {
+      cancelAnimationFrame(this.motionFrame);
+      this.motionFrame = 0;
+    }
+
+    this.startFlight(this.visualRect || targetRect, targetRect, {
+      fromScale: this.visualScale || ENTRANCE_HOLD_SCALE,
+      toScale: 1,
+      scaleDelayMs: 80,
+      preserveEntrance: true,
+      onComplete: () => {
+        this.entrance = null;
+        this.currentGuideRect = targetRect;
+        if (onComplete) {
+          onComplete();
+        }
+      },
+    });
+    return true;
   }
 
   setGuideRect(rect, options = {}) {
@@ -353,8 +531,8 @@ export class MascotAnimator {
     return copyRect(targetRect);
   }
 
-  startFlight(fromRect, targetRect) {
-    this.stopMotion();
+  startFlight(fromRect, targetRect, options = {}) {
+    this.stopMotion({ keepEntrance: options.preserveEntrance });
 
     const start = rectCenter(fromRect);
     const end = rectCenter(targetRect);
@@ -390,24 +568,32 @@ export class MascotAnimator {
       anticipationMs,
       mainMs: Math.max(1, durationMs - anticipationMs),
       startedAt: 0,
+      fromScale: options.fromScale || 1,
+      toScale: options.toScale || 1,
+      scaleDelayMs: options.scaleDelayMs || 0,
+      preserveEntrance: options.preserveEntrance || false,
+      onComplete: options.onComplete || null,
     };
 
     this.motionMode = "flight";
-    this.applyBox(fromRect, 1, 0);
+    this.applyBox(fromRect, this.flight.fromScale, 0);
     this.imageElement.hidden = false;
     this.motionFrame = requestAnimationFrame(this.tickFlight);
   }
 
-  applyBox(rect, scale, rotation) {
+  applyBox(rect, scale, rotation, options = {}) {
     const safeScale = Number.isFinite(scale) ? scale : 1;
     const safeRotation = Number.isFinite(rotation) ? rotation : 0;
+    const safeOpacity = Number.isFinite(options.opacity) ? clamp(options.opacity, 0, 1) : 1;
 
     this.visualRect = copyRect(rect);
+    this.visualScale = safeScale;
+    this.visualRotation = safeRotation;
     this.imageElement.style.left = `${rect.left}px`;
     this.imageElement.style.top = `${rect.top}px`;
     this.imageElement.style.width = `${rect.width}px`;
     this.imageElement.style.height = `${rect.height}px`;
-    this.imageElement.style.opacity = "1";
+    this.imageElement.style.opacity = safeOpacity.toFixed(3);
     this.imageElement.style.transform = `scale(${safeScale.toFixed(3)}) rotate(${safeRotation.toFixed(2)}deg)`;
     this.imageElement.style.filter = shadowForScale(safeScale);
   }
@@ -496,13 +682,18 @@ export class MascotAnimator {
 
     const elapsed = timestamp - flight.startedAt;
     if (elapsed >= flight.durationMs) {
-      this.applyBox(flight.targetRect, 1, 0);
-      this.stopMotion();
+      const onComplete = flight.onComplete;
+      const preserveEntrance = flight.preserveEntrance;
+      this.applyBox(flight.targetRect, flight.toScale, 0);
+      this.stopMotion({ keepEntrance: preserveEntrance });
+      if (onComplete) {
+        onComplete();
+      }
       return;
     }
 
     let center = flight.start;
-    let scale = 1;
+    let scale = flight.fromScale;
     let rotation = 0;
     let positionAmount = 0;
 
@@ -512,12 +703,15 @@ export class MascotAnimator {
         x: mix(flight.start.x, flight.anticipation.x, anticipationAmount),
         y: mix(flight.start.y, flight.anticipation.y, anticipationAmount) - Math.sin(anticipationAmount * Math.PI) * 3,
       };
-      scale = mix(1, 0.94, anticipationAmount);
+      scale = mix(flight.fromScale, flight.fromScale * 0.94, anticipationAmount);
       rotation = clamp(-((flight.end.x - flight.start.x) / Math.max(flight.distance, 1)) * 7 * anticipationAmount, -10, 10);
     } else {
       const rawAmount = clamp((elapsed - flight.anticipationMs) / flight.mainMs, 0, 1);
       positionAmount = easeInOutCubic(rawAmount);
       const transformAmount = easeOutCubic(clamp((elapsed - flight.anticipationMs) / Math.max(1, flight.mainMs - 84), 0, 1));
+      const scaleAmount = easeOutCubic(
+        clamp((elapsed - flight.anticipationMs - flight.scaleDelayMs) / Math.max(1, flight.mainMs - flight.scaleDelayMs), 0, 1)
+      );
       center = quadraticPoint(flight.anticipation, flight.control, flight.end, positionAmount);
 
       const distanceFactor = clamp(flight.distance / 520, 0, 1);
@@ -525,9 +719,9 @@ export class MascotAnimator {
       const arrivalStart = Math.max(0, 1 - 120 / flight.mainMs);
       const arrivalAmount = clamp((rawAmount - arrivalStart) / Math.max(0.001, 1 - arrivalStart), 0, 1);
       const overshoot = arrivalAmount > 0 ? 0.06 * Math.sin(arrivalAmount * Math.PI) : 0;
-      scale = 1 - awayDip + overshoot;
+      scale = mix(flight.fromScale, flight.toScale, scaleAmount) * (1 - awayDip + overshoot);
       if (rawAmount >= 0.995) {
-        scale = 1;
+        scale = flight.toScale;
       }
 
       const derivative = quadraticDerivative(flight.anticipation, flight.control, flight.end, positionAmount);
@@ -539,6 +733,121 @@ export class MascotAnimator {
     const height = mix(flight.fromRect.height, flight.targetRect.height, positionAmount);
     this.applyBox(rectFromCenter(center, width, height), scale, rotation);
     this.motionFrame = requestAnimationFrame(this.tickFlight);
+  }
+
+  entranceSpiralPoint(amount, targetRect) {
+    const center = viewportCenter();
+    const size = Math.max(targetRect.width, targetRect.height);
+    const startRadius = Math.hypot(window.innerWidth / 2 + size * 0.95, window.innerHeight / 2 + size * 0.95);
+    const angle = -Math.PI / 4 + ENTRANCE_SPIRAL_TURNS * Math.PI * 2 * easeInOutCubic(amount);
+    const radius = startRadius * Math.exp(-1.65 * amount) * (1 - amount) ** 1.24;
+    return {
+      x: center.x + Math.cos(angle) * radius,
+      y: center.y + Math.sin(angle) * radius,
+    };
+  }
+
+  entranceHoldCenter(elapsed) {
+    const center = viewportCenter();
+    return {
+      x: center.x + Math.sin(elapsed / 1900) * 4 + Math.sin(elapsed / 4100 + 1.2) * 2,
+      y: center.y - 3 + Math.sin(elapsed / 780) * 4 + Math.sin(elapsed / 2300 + 0.8) * 1.5,
+    };
+  }
+
+  startEntranceHold(timestamp) {
+    const entrance = this.entrance;
+    if (!entrance || entrance.speechStarted) {
+      return;
+    }
+
+    entrance.phase = "hold";
+    entrance.holdStartedAt = timestamp;
+    entrance.speechStarted = true;
+    entrance.rotationVelocity *= 0.35;
+    if (entrance.onSpeechStart) {
+      entrance.onSpeechStart();
+    }
+  }
+
+  tickEntrance(timestamp) {
+    const entrance = this.entrance;
+    if (!entrance || this.motionMode !== "entrance") {
+      return;
+    }
+
+    if (!entrance.startedAt) {
+      entrance.startedAt = timestamp;
+      entrance.lastTickAt = timestamp;
+    }
+
+    const elapsed = timestamp - entrance.startedAt;
+    const dtSeconds = clamp((timestamp - entrance.lastTickAt) / 1000, 0.001, 0.05);
+    entrance.lastTickAt = timestamp;
+
+    if (entrance.reduced) {
+      const fadeAmount = easeOutCubic(clamp(elapsed / ENTRANCE_REDUCED_FADE_MS, 0, 1));
+      this.applyBox(entrance.targetRect, 1, 0, { opacity: fadeAmount });
+      if (fadeAmount >= 1) {
+        this.motionFrame = 0;
+        this.startEntranceHold(timestamp);
+        return;
+      }
+      this.motionFrame = requestAnimationFrame(this.tickEntrance);
+      return;
+    }
+
+    const targetRect = entrance.targetRect;
+    const center = viewportCenter();
+    let currentCenter = center;
+    let scale = ENTRANCE_HOLD_SCALE;
+    let rotationTarget = 0;
+
+    if (elapsed < ENTRANCE_SPIRAL_MS) {
+      const amount = clamp(elapsed / ENTRANCE_SPIRAL_MS, 0, 1);
+      currentCenter = this.entranceSpiralPoint(amount, targetRect);
+      const before = this.entranceSpiralPoint(clamp(amount - 0.004, 0, 1), targetRect);
+      const after = this.entranceSpiralPoint(clamp(amount + 0.004, 0, 1), targetRect);
+      const settleOut = 1 - easeOutCubic(clamp((amount - 0.82) / 0.18, 0, 1));
+      rotationTarget = bankFromVector(after.x - before.x, after.y - before.y) * settleOut;
+      scale = mix(0.5, 1, easeOutCubic(amount));
+    } else if (elapsed < ENTRANCE_SPIRAL_MS + ENTRANCE_PUSH_MS) {
+      const amount = clamp((elapsed - ENTRANCE_SPIRAL_MS) / ENTRANCE_PUSH_MS, 0, 1);
+      const pushPosition = easeOutCubic(amount);
+      currentCenter = {
+        x: center.x,
+        y: center.y - mix(0, 10, pushPosition),
+      };
+      if (amount < 0.78) {
+        scale = mix(1, ENTRANCE_PUSH_OVERSHOOT_SCALE, easeOutCubic(amount / 0.78));
+      } else {
+        scale = mix(ENTRANCE_PUSH_OVERSHOOT_SCALE, ENTRANCE_PUSH_SCALE, easeOutCubic((amount - 0.78) / 0.22));
+      }
+    } else if (elapsed < ENTRANCE_SPIRAL_MS + ENTRANCE_PUSH_MS + ENTRANCE_PULL_MS) {
+      const pullElapsed = elapsed - ENTRANCE_SPIRAL_MS - ENTRANCE_PUSH_MS;
+      const positionAmount = easeOutCubic(clamp(pullElapsed / Math.max(1, ENTRANCE_PULL_MS - 140), 0, 1));
+      const scaleAmount = easeOutBack(clamp((pullElapsed - 80) / Math.max(1, ENTRANCE_PULL_MS - 80), 0, 1));
+      currentCenter = {
+        x: center.x,
+        y: mix(center.y - 10, center.y - 3, positionAmount),
+      };
+      scale = mix(ENTRANCE_PUSH_SCALE, ENTRANCE_HOLD_SCALE, scaleAmount);
+    } else {
+      if (!entrance.speechStarted) {
+        this.startEntranceHold(timestamp);
+      }
+      const holdElapsed = timestamp - entrance.holdStartedAt;
+      currentCenter = this.entranceHoldCenter(holdElapsed);
+      scale = ENTRANCE_HOLD_SCALE + Math.sin(holdElapsed / 680) * 0.016 + Math.sin(holdElapsed / 1700 + 0.4) * 0.007;
+      rotationTarget = Math.sin(holdElapsed / 1200) * 1.2 + Math.sin(holdElapsed / 2600 + 0.9) * 0.5;
+    }
+
+    const rotationSpring = stepSpring(entrance.rotation, entrance.rotationVelocity, rotationTarget, dtSeconds);
+    entrance.rotation = clamp(rotationSpring.value, -14, 14);
+    entrance.rotationVelocity = rotationSpring.velocity;
+
+    this.applyBox(rectFromCenter(currentCenter, targetRect.width, targetRect.height), scale, entrance.rotation);
+    this.motionFrame = requestAnimationFrame(this.tickEntrance);
   }
 
   tickCelebration(timestamp) {
