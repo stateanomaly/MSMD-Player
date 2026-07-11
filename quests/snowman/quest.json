@@ -1,0 +1,99 @@
+{
+  "schema": 2,
+  "id": "snowman",
+  "title": "Build a Snowman!",
+  "voice": "Mtmp3KhFIjYpWYRycDe3",
+  "harmless_ops": ["view3d.*", "screen.*", "outliner.*", "ed.undo", "object.select_all", "wm.save*"],
+  "steps": [
+    {
+      "id": "s0",
+      "narration": "say0.mp3",
+      "narration_text": "Whoa, dude — snowmen don't need cubes! Click that cube, press X, then hit Delete.",
+      "goal": "Delete the default cube so the scene has no object named Cube",
+      "target": { "kind": "window_norm", "x": 0.5, "y": 0.55 },
+      "check": { "type": "scene_missing", "name": "Cube" },
+      "timeout_s": 45
+    },
+    {
+      "id": "s1",
+      "narration": "say1.mp3",
+      "narration_text": "Time for your first snowball! Press Shift and A, pick Mesh, then UV Sphere.",
+      "goal": "Add a UV Sphere mesh to the scene",
+      "target": { "kind": "none" },
+      "check": { "any": [ { "type": "operator", "id": "mesh.primitive_uv_sphere_add" }, { "type": "scene_exists", "name": "Sphere" } ] },
+      "timeout_s": 45
+    },
+    {
+      "id": "s2",
+      "narration": "say2.mp3",
+      "narration_text": "Let's make it a big belly! Press S, type one point five, and hit Enter.",
+      "goal": "Scale the sphere up to 1.5",
+      "target": { "kind": "none" },
+      "check": { "all": [ { "type": "operator", "id": "transform.resize" }, { "type": "object_attr", "name": "Sphere", "attr": "scale.x", "op": "gte", "value": 1.3 } ] },
+      "timeout_s": 45
+    },
+    {
+      "id": "s3",
+      "narration": "say3.mp3",
+      "narration_text": "Check the Outliner, top right! Double-click the word Sphere and rename it Belly.",
+      "goal": "Rename the object Sphere to Belly using the Outliner",
+      "target": { "kind": "window_norm", "x": 0.86, "y": 0.12 },
+      "check": { "all": [ { "type": "scene_exists", "name": "Belly" }, { "type": "scene_missing", "name": "Sphere" } ] },
+      "timeout_s": 60
+    },
+    {
+      "id": "s4",
+      "narration": "say4.mp3",
+      "narration_text": "Copy time! Press Shift and D, then tap Escape — sneaky, it's right on top!",
+      "goal": "Duplicate the Belly object (duplicate stays at the same spot)",
+      "target": { "kind": "none" },
+      "check": { "any": [ { "type": "operator", "id": "object.duplicate*" }, { "type": "scene_exists", "name": "Belly.001" } ] },
+      "timeout_s": 45
+    },
+    {
+      "id": "s5",
+      "narration": "say5.mp3",
+      "narration_text": "Lift it up! Press G, then Z, type two, and hit Enter.",
+      "goal": "Move the duplicated sphere Belly.001 up 2 units on the Z axis",
+      "target": { "kind": "none" },
+      "check": { "type": "object_attr", "name": "Belly.001", "attr": "location.z", "op": "gte", "value": 1.2 },
+      "timeout_s": 45
+    },
+    {
+      "id": "s6",
+      "narration": "say6.mp3",
+      "narration_text": "Heads are smaller than bellies, dude. Press S, type zero point six, then Enter.",
+      "goal": "Scale Belly.001 down to about 0.6 of its size",
+      "target": { "kind": "none" },
+      "check": { "type": "object_attr", "name": "Belly.001", "attr": "scale.x", "op": "lte", "value": 1.1 },
+      "timeout_s": 45
+    },
+    {
+      "id": "s7",
+      "narration": "say7.mp3",
+      "narration_text": "Back to the Outliner! Rename Belly dot zero zero one to Head.",
+      "goal": "Rename the object Belly.001 to Head using the Outliner",
+      "target": { "kind": "window_norm", "x": 0.86, "y": 0.12 },
+      "check": { "type": "scene_exists", "name": "Head" },
+      "timeout_s": 60
+    },
+    {
+      "id": "s8",
+      "narration": "say8.mp3",
+      "narration_text": "Every snowman needs a carrot nose! Shift and A, Mesh, then Cone.",
+      "goal": "Add a Cone mesh to the scene for the carrot nose",
+      "target": { "kind": "none" },
+      "check": { "any": [ { "type": "operator", "id": "mesh.primitive_cone_add" }, { "type": "scene_exists", "name": "Cone" } ] },
+      "timeout_s": 45
+    },
+    {
+      "id": "s9",
+      "narration": "say9.mp3",
+      "narration_text": "Radical! Press Command and S to save your snowman, dude!",
+      "goal": "Save the .blend file to disk",
+      "target": { "kind": "none" },
+      "check": { "type": "saved" },
+      "timeout_s": 45
+    }
+  ]
+}
