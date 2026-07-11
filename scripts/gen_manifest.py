@@ -12,7 +12,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONTENT_ROOT = REPO_ROOT / "csb_msmd001"
 DEFAULT_OUTPUT = REPO_ROOT / "webapp" / "content" / "manifest.json"
 FRAME_SUFFIX = ".png"
-AUDIO_SUFFIX = ".wav"
+NARRATION_SUFFIX = ".mp3"
+COMPLETION_SUFFIX = ".wav"
 
 
 def numeric_stem(path: Path, prefix: str) -> int | None:
@@ -25,13 +26,13 @@ def numeric_stem(path: Path, prefix: str) -> int | None:
     return int(value)
 
 
-def audio_indices(level_dir: Path, prefix: str) -> list[int]:
-    indices = []
-    for path in level_dir.glob(f"{prefix}*{AUDIO_SUFFIX}"):
+def audio_files(level_dir: Path, prefix: str, suffix: str) -> list[str]:
+    files = []
+    for path in level_dir.glob(f"{prefix}*{suffix}"):
         value = numeric_stem(path, prefix)
         if value is not None:
-            indices.append(value)
-    return sorted(indices)
+            files.append((value, path.name))
+    return [name for _, name in sorted(files)]
 
 
 def load_hotspots(level_dir: Path) -> dict[str, object]:
@@ -82,8 +83,8 @@ def build_manifest(content_root: Path) -> dict[str, object]:
                 "frames": [path.name for path in frames],
                 "hotspots": hotspots,
                 "audio": {
-                    "say": audio_indices(level_dir, "say"),
-                    "sound": audio_indices(level_dir, "sound"),
+                    "say": audio_files(level_dir, "say", NARRATION_SUFFIX),
+                    "sound": audio_files(level_dir, "sound", COMPLETION_SUFFIX),
                 },
             }
         )

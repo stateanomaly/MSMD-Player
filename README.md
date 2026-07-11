@@ -63,8 +63,10 @@ The replacement static web player lives in `webapp/` and uses the staged `csb_ms
 ```bash
 bash scripts/build-web.sh
 python3 -m http.server 8341 -d dist
-wrangler deploy
+npx wrangler deploy
 ```
+
+Pushes to `master` deploy automatically through GitHub Actions. The repository must have a `CLOUDFLARE_API_TOKEN` secret with permission to deploy the Worker. Manual deploys still use `npx wrangler deploy`.
 
 ## Usage
 
