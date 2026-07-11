@@ -29,4 +29,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    _code = main()
+    try:
+        import bpy
+        _background = bpy.app.background
+    except ImportError:
+        _background = True
+    if _background and _code != 0:
+        raise SystemExit(_code)
