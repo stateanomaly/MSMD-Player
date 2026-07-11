@@ -23,7 +23,11 @@
         <button id="exit-button" class="exit-button" type="button" aria-label="Exit game">Exit</button>
         <div id="play-surface" class="play-surface" tabindex="0" aria-label="Game input surface">
           <img id="frame-image" class="frame-image" alt="">
-          <div id="hotspot" class="hotspot" hidden></div>
+          <div id="hotspot" class="hotspot" aria-hidden="true" hidden>
+            <span class="hotspot-layer hotspot-pulse"></span>
+            <span class="hotspot-layer hotspot-pulse hotspot-pulse-delayed"></span>
+            <span class="hotspot-layer hotspot-core"></span>
+          </div>
           <div id="key-prompt" class="key-prompt" hidden></div>
         </div>
         <img id="mascot" class="mascot" alt="" aria-hidden="true" hidden>

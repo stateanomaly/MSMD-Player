@@ -275,20 +275,19 @@ function setFrame(level, frameName) {
   frameImage.src = assetUrl(level, frameName);
 }
 
-function buttonColor(button) {
-  if (button === "right") {
-    return "rgba(0, 0, 255, 0.5)";
-  }
-  if (button === "middle") {
-    return "rgba(0, 255, 0, 0.5)";
-  }
-  return "rgba(255, 0, 0, 0.5)";
-}
-
 function restartPromptPop(element) {
   element.classList.remove("is-popping");
   void element.offsetWidth;
   element.classList.add("is-popping");
+  element.addEventListener(
+    "animationend",
+    (event) => {
+      if (event.target === element && !event.pseudoElement) {
+        element.classList.remove("is-popping");
+      }
+    },
+    { once: true }
+  );
 }
 
 function hotspotRectForStep(step) {
@@ -326,7 +325,6 @@ function renderHotspot(step, options = {}) {
   hotspot.style.top = `${rect.top}px`;
   hotspot.style.width = `${rect.width}px`;
   hotspot.style.height = `${rect.height}px`;
-  hotspot.style.borderColor = buttonColor(stepHotspot.button);
   hotspot.hidden = false;
   if (options.pop) {
     restartPromptPop(hotspot);
