@@ -35,3 +35,8 @@ dist/
 *.exe
 webapp/content/manifest.json
 .gstack/
+
+node_modules/
+companion/config.json
+__pycache__/
+.venv*/

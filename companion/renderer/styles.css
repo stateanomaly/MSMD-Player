@@ -1,0 +1,244 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+  color: #f6f7fb;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  pointer-events: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.hotspot {
+  position: fixed;
+  z-index: 10;
+  border-radius: 50%;
+  pointer-events: none;
+  transform-origin: center;
+  isolation: isolate;
+  will-change: opacity, transform;
+  --hotspot-core: #fff8dc;
+  --hotspot-glow: rgba(255, 211, 64, 0.72);
+  --hotspot-bloom: rgba(255, 183, 40, 0.34);
+  --hotspot-rim: rgba(24, 14, 3, 0.66);
+}
+
+.hotspot-layer {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transform-origin: center;
+}
+
+.hotspot-core {
+  z-index: 3;
+  border: 3px solid var(--hotspot-core);
+  background:
+    radial-gradient(circle, rgba(255, 232, 125, 0.18) 0 40%, rgba(255, 209, 61, 0.08) 54%, transparent 68%);
+  box-shadow:
+    0 0 0 1px var(--hotspot-rim),
+    inset 0 0 0 1px rgba(38, 22, 4, 0.38),
+    0 0 8px 1px rgba(255, 249, 218, 0.88),
+    0 0 18px 5px var(--hotspot-glow),
+    0 0 36px 11px var(--hotspot-bloom);
+  animation: hotspot-core-breathe 2200ms ease-in-out infinite;
+  will-change: filter, transform;
+}
+
+.hotspot-core::before,
+.hotspot-core::after {
+  content: "";
+  position: absolute;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.hotspot-core::before {
+  inset: -48%;
+  z-index: -1;
+  background:
+    radial-gradient(circle, rgba(255, 237, 156, 0.24) 0 30%, rgba(255, 213, 62, 0.18) 45%, rgba(255, 174, 32, 0.08) 58%, transparent 72%);
+  filter: blur(1px);
+}
+
+.hotspot-core::after {
+  inset: -1px;
+  border: 1px solid var(--hotspot-rim);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.24);
+}
+
+.hotspot-pulse {
+  z-index: 1;
+  border: 2px solid rgba(255, 246, 204, 0.78);
+  box-shadow:
+    0 0 0 1px rgba(44, 26, 4, 0.28),
+    0 0 13px rgba(255, 219, 92, 0.5),
+    0 0 26px rgba(255, 186, 36, 0.24);
+  opacity: 0;
+  animation: hotspot-sonar 1400ms ease-out infinite;
+  will-change: opacity, transform;
+}
+
+.hotspot-pulse-delayed {
+  animation-delay: -700ms;
+}
+
+.hotspot.is-popping {
+  animation: hotspot-pop 220ms cubic-bezier(0.2, 0.9, 0.24, 1.18) both;
+}
+
+.mascot {
+  position: fixed;
+  right: clamp(10px, 2vw, 28px);
+  bottom: clamp(8px, 2vw, 22px);
+  z-index: 28;
+  width: clamp(132px, 22vw, 260px);
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+  transform-origin: center;
+  will-change: left, top, width, height, transform, filter, opacity;
+}
+
+.mascot.is-guiding,
+.mascot.is-celebrating {
+  right: auto;
+  bottom: auto;
+  object-fit: contain;
+}
+
+.mascot.is-celebrating {
+  z-index: 45;
+}
+
+.steer-caption {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(18px, 4vh, 42px);
+  z-index: 46;
+  max-width: min(720px, calc(100vw - 28px));
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 217, 96, 0.34);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(24, 21, 14, 0.88), rgba(8, 10, 14, 0.8));
+  color: rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 0 0 1px rgba(36, 21, 3, 0.3),
+    0 10px 28px rgba(0, 0, 0, 0.32),
+    0 0 20px rgba(255, 205, 58, 0.16);
+  font-size: clamp(0.92rem, 1.8vw, 1.15rem);
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  transform: translateX(-50%);
+  backdrop-filter: blur(8px);
+}
+
+.error-overlay {
+  position: fixed;
+  inset: 18px;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border: 1px solid rgba(255, 195, 182, 0.34);
+  border-radius: 8px;
+  background: rgba(8, 10, 14, 0.84);
+  color: #ffc3b6;
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.4;
+  text-align: center;
+  white-space: pre-wrap;
+  backdrop-filter: blur(8px);
+}
+
+@keyframes hotspot-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  66% {
+    opacity: 1;
+    transform: scale(1.16);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes hotspot-core-breathe {
+  0%,
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+
+  50% {
+    filter: brightness(1.12);
+    transform: scale(1.06);
+  }
+}
+
+@keyframes hotspot-sonar {
+  0% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+
+  62% {
+    opacity: 0.24;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 120ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 120ms !important;
+  }
+
+  .hotspot.is-popping {
+    animation-name: fade-in;
+  }
+
+  .hotspot-core,
+  .hotspot-pulse {
+    animation: none !important;
+  }
+
+  .hotspot-pulse {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}

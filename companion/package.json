@@ -1,0 +1,16 @@
+{
+  "name": "msmd-guided-companion",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/protocol.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}
