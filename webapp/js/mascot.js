@@ -1,14 +1,14 @@
 const FPS = 24;
 const FRAME_MS = 1000 / FPS;
-const GUIDE_HEIGHT_RATIO = 0.16;
+const GUIDE_HEIGHT_RATIO = 0.20;
 const GUIDE_MIN_SIZE = 96;
-const GUIDE_MAX_SIZE = 200;
+const GUIDE_MAX_SIZE = 240;
 const GUIDE_GAP = 10;
 const CLIPS = {
-  idle: 24,
+  idle: 48,
   wave: 40,
-  thumbsup: 40,
-  dance: 29,
+  thumbsup: 32,
+  dance: 48,
 };
 
 function clamp(value, min, max) {
