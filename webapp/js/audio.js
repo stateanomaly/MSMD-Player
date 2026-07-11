@@ -17,12 +17,29 @@ function stopAudioElement(element) {
   element.load();
 }
 
+function playAudioElement(element, url, { restart = true } = {}) {
+  if (!url) {
+    return element;
+  }
+  if (restart) {
+    element.pause();
+  }
+  element.src = url;
+  element.currentTime = 0;
+  void element.play().catch(() => {});
+  return element;
+}
+
 export class AudioManager {
   constructor() {
     this.narration = new Audio();
     this.narration.preload = "auto";
     this.completion = new Audio();
     this.completion.preload = "auto";
+    this.voice = new Audio();
+    this.voice.preload = "auto";
+    this.sfx = new Audio();
+    this.sfx.preload = "auto";
   }
 
   async unlock() {
@@ -46,28 +63,35 @@ export class AudioManager {
     stopAudioElement(this.completion);
   }
 
+  stopVoice() {
+    stopAudioElement(this.voice);
+  }
+
+  stopSfx() {
+    stopAudioElement(this.sfx);
+  }
+
   stopAll() {
     this.stopNarration();
     this.stopCompletion();
+    this.stopVoice();
+    this.stopSfx();
   }
 
   playNarration(url) {
     this.stopNarration();
-    if (!url) {
-      return;
-    }
-    this.narration.src = url;
-    this.narration.currentTime = 0;
-    void this.narration.play().catch(() => {});
+    return playAudioElement(this.narration, url);
   }
 
   playCompletion(url) {
-    if (!url) {
-      return;
-    }
-    this.completion.pause();
-    this.completion.src = url;
-    this.completion.currentTime = 0;
-    void this.completion.play().catch(() => {});
+    return playAudioElement(this.completion, url);
+  }
+
+  playVoice(url) {
+    return playAudioElement(this.voice, url);
+  }
+
+  playSfx(url) {
+    return playAudioElement(this.sfx, url);
   }
 }

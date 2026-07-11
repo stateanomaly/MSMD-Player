@@ -211,6 +211,12 @@ h1 {
   border-radius: 50%;
   background: rgba(180, 180, 180, 0.39);
   pointer-events: none;
+  transform-origin: center;
+  will-change: opacity, transform;
+}
+
+.hotspot.is-popping {
+  animation: hotspot-pop 180ms cubic-bezier(0.2, 0.9, 0.24, 1.18) both;
 }
 
 .key-prompt {
@@ -228,8 +234,14 @@ h1 {
   border-radius: 8px;
   background: rgba(8, 10, 14, 0.78);
   transform: translateX(-50%);
+  transform-origin: center;
   backdrop-filter: blur(8px);
   flex-wrap: wrap;
+  will-change: opacity, transform;
+}
+
+.key-prompt.is-popping {
+  animation: key-prompt-pop 180ms cubic-bezier(0.2, 0.9, 0.24, 1.18) both;
 }
 
 .key-prompt-text {
@@ -268,12 +280,19 @@ h1 {
   height: auto;
   pointer-events: none;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+  transform-origin: center;
+  will-change: left, top, width, height, transform, filter, opacity;
 }
 
-.mascot.is-guiding {
+.mascot.is-guiding,
+.mascot.is-celebrating {
   right: auto;
   bottom: auto;
   object-fit: contain;
+}
+
+.mascot.is-celebrating {
+  z-index: 45;
 }
 
 .win-overlay,
@@ -288,6 +307,7 @@ h1 {
 
 .win-overlay {
   z-index: 40;
+  animation: overlay-in 220ms ease-out both;
 }
 
 .confirm-overlay {
@@ -305,8 +325,112 @@ h1 {
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.44);
 }
 
+.win-panel {
+  transform-origin: center;
+  animation: win-panel-in 260ms cubic-bezier(0.2, 0.84, 0.22, 1) both;
+}
+
 .confirm-panel {
   width: min(390px, 100%);
+}
+
+@keyframes hotspot-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.76);
+  }
+
+  66% {
+    opacity: 1;
+    transform: scale(1.14);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes key-prompt-pop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.86);
+  }
+
+  68% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.07);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@keyframes overlay-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes win-panel-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes key-prompt-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 120ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 120ms !important;
+  }
+
+  .hotspot.is-popping,
+  .win-overlay,
+  .win-panel {
+    animation-name: fade-in;
+  }
+
+  .key-prompt.is-popping {
+    animation-name: key-prompt-fade-in;
+  }
 }
 
 .win-panel h2,

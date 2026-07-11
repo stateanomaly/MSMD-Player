@@ -1,0 +1,26 @@
+{
+ "praise": [
+  "praise_00.mp3",
+  "praise_01.mp3",
+  "praise_02.mp3",
+  "praise_03.mp3",
+  "praise_04.mp3",
+  "praise_05.mp3",
+  "praise_06.mp3",
+  "praise_07.mp3",
+  "praise_08.mp3",
+  "praise_09.mp3",
+  "praise_10.mp3",
+  "praise_11.mp3",
+  "praise_12.mp3",
+  "praise_13.mp3"
+ ],
+ "levelup": [
+  "levelup_00.mp3",
+  "levelup_01.mp3",
+  "levelup_02.mp3",
+  "levelup_03.mp3",
+  "levelup_04.mp3",
+  "levelup_05.mp3"
+ ]
+}
