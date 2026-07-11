@@ -33,3 +33,4 @@ dist/
 
 # Build artifacts
 *.exe
+webapp/content/manifest.json
