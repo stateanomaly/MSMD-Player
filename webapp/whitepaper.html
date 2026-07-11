@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSMD Platform Whitepaper</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --ink: #1c1a14;
+    --muted: #6b6656;
+    --card: #f2efe7;
+    --line: #e0dccd;
+    --accent: #d99a06;        /* robot yellow, darkened for light ground */
+    --accent-ink: #7a5600;
+    --blender: #c86a0b;       /* Blender orange, for addon-side items */
+    --good: #3d7a3d;
+    --chip-bg: #efe7d2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b;
+      --ink: #ece9df;
+      --muted: #9a958a;
+      --card: #1c1f26;
+      --line: #2b2f38;
+      --accent: #f5c02c;
+      --accent-ink: #f5c02c;
+      --blender: #f0913c;
+      --good: #7fbf7f;
+      --chip-bg: #262a33;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161b; --ink: #ece9df; --muted: #9a958a; --card: #1c1f26;
+    --line: #2b2f38; --accent: #f5c02c; --accent-ink: #f5c02c;
+    --blender: #f0913c; --good: #7fbf7f; --chip-bg: #262a33;
+  }
+  :root[data-theme="light"] {
+    --bg: #fbfaf7; --ink: #1c1a14; --muted: #6b6656; --card: #f2efe7;
+    --line: #e0dccd; --accent: #d99a06; --accent-ink: #7a5600;
+    --blender: #c86a0b; --good: #3d7a3d; --chip-bg: #efe7d2;
+  }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.65 -apple-system, "Segoe UI", system-ui, sans-serif;
+    margin: 0; padding: 0 20px;
+  }
+  main { max-width: 46rem; margin: 0 auto; padding: 3.5rem 0 5rem; }
+  h1, h2, h3 { font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif; text-wrap: balance; }
+  h1 { font-size: 2rem; font-weight: 700; line-height: 1.15; margin: .4rem 0 .6rem; }
+  h2 { font-size: 1.3rem; font-weight: 650; margin: 2.8rem 0 .6rem; }
+  h3 { font-size: 1.02rem; font-weight: 650; margin: 1.6rem 0 .35rem; }
+  p { margin: .65rem 0; }
+  .eyebrow {
+    text-transform: uppercase; letter-spacing: .14em; font-size: .72rem;
+    color: var(--accent-ink); font-weight: 700; margin: 0;
+  }
+  .standfirst { color: var(--muted); font-size: 1.05rem; margin-top: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: .45rem; margin: 1.1rem 0 0; padding: 0; list-style: none; }
+  .chips li {
+    background: var(--chip-bg); border: 1px solid var(--line);
+    padding: .18rem .65rem; border-radius: 99px; font-size: .8rem; color: var(--muted);
+  }
+  .chips li.done { color: var(--good); border-color: var(--good); }
+  section.card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 1.1rem 1.3rem; margin: 1.2rem 0;
+  }
+  .tag {
+    display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; padding: .1rem .5rem; border-radius: 4px; margin-right: .5rem;
+    vertical-align: 2px;
+  }
+  .tag.web { background: var(--chip-bg); color: var(--accent-ink); }
+  .tag.addon { background: var(--chip-bg); color: var(--blender); }
+  ul { padding-left: 1.2rem; margin: .5rem 0; }
+  li { margin: .3rem 0; }
+  li::marker { color: var(--accent); }
+  strong { font-weight: 650; }
+  .muted { color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; margin: 1rem 0; }
+  th, td { text-align: left; padding: .5rem .8rem .5rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  td:first-child { white-space: nowrap; font-weight: 650; }
+  code {
+    font: .86em ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--chip-bg); padding: .1em .35em; border-radius: 4px;
+  }
+  a { color: var(--accent-ink); }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">MSMD · Monkey See Monkey Do</p>
+  <h1>From one walkthrough to a teaching platform</h1>
+  <p class="standfirst">Where the project stands, and a concrete path to accounts, gamification,
+  and a Blender companion that watches the student actually do the thing.</p>
+  <ul class="chips">
+    <li class="done">✓ Web player live at play.msmd.workers.dev</li>
+    <li class="done">✓ 10 levels · 216 steps</li>
+    <li class="done">✓ TTS narration</li>
+    <li class="done">✓ Guide robot</li>
+    <li class="done">✓ Session exit</li>
+  </ul>
+
+  <h2>The north star: robot farmers</h2>
+  <p>The long game: kids <strong>design their own robots in Blender</strong> and put them to work in
+  a shared virtual world — a farm — where robots grow food. The world is a simulation testbed:
+  designs are tested against each other in <strong>healthy competition</strong>, refined season over
+  season, and the best of them graduate toward <em>physically buildable</em> robots. Everything on
+  this page is a step on that path:</p>
+  <ul>
+    <li><strong>The quests teach exactly the modeling skills a robot body needs</strong> — the bike
+    assembly is already wheels, frames, and fasteners. Quest content should march toward chassis,
+    grippers, and tool mounts.</li>
+    <li><strong>The ghost model becomes the design gate:</strong> match the reference chassis to
+    prove your build is sound, then diverge — your robot, your look, your trade-offs.</li>
+    <li><strong>The mascot foreshadows the product.</strong> The yellow robot that guides kids today
+    is the same rig category they'll eventually design themselves. “Build a friend like me” is the
+    quest line.</li>
+    <li><strong>The farm keeps competition healthy.</strong> Robots compete on <em>yield, energy
+    efficiency, and reliability</em> over a growing season — not combat. Class-level co-op (a shared
+    field) plus per-design leaderboards; constraints (a parts budget, a power budget) make clever
+    design beat brute force, which is exactly the engineering habit that transfers to real robots.</li>
+    <li><strong>Sim-to-real is the graduation:</strong> designs carry a bill of materials; a design
+    that wins in the sim exports its printable/buildable parts. (The original desktop player already
+    spoke serial to physical robot bases — that heritage comes back here.)</li>
+    <li><strong>The garden is the endgame:</strong> graduated robots get <em>deployed for real</em>
+    in an indoor botanical garden, remotely operated. A kid logs in each day to check on their
+    robot — live camera of its plot, telemetry (battery, tasks done, soil moisture), a time-lapse of
+    what it's growing — and tweaks its behavior for tomorrow. Plants grow on plant time, which makes
+    this the deepest retention loop imaginable: <em>a living thing depends on your engineering.</em></li>
+  </ul>
+  <p class="muted"><strong>Making the garden feasible:</strong> the workable pattern is a fleet of
+  <em>standardized base chassis</em> (safe, maintained on-site) that run each student's
+  <em>design layer</em> — their attachments, parameters, and block programs — rather than one-off
+  hardware per kid. Remote ops means a queued job model, not live joysticks: the student's daily
+  tweaks are reviewed constraints (watering schedule, route, tool choice) executed within a
+  staff-stewarded safety envelope. Telemetry uses the <em>same schema as the simulation</em>, so the
+  sim is a true digital twin — test tonight's tweak in the sim, then promote it to the real robot.
+  Cameras per plot + nightly time-lapse renders give every login a payoff even when nothing needs
+  fixing.</p>
+  <p class="muted">Technically this stays on the same stack longer than you'd think: Blender exports
+  glTF; a three.js farm world runs in the browser off the same Cloudflare platform; robot behavior
+  starts as simple block programs (sense → move → act) before anyone writes code. Determinism-first
+  physics keeps season results fair and replayable.</p>
+
+  <h2>The core idea, named</h2>
+  <p>Each “game” is a <strong>quest</strong>: a guided walkthrough of modeling something real in
+  Blender. The current click-through player is the first mode of a progression that ends with the
+  student doing it unassisted in real Blender:</p>
+  <div class="table-wrap"><table>
+    <tr><th>Mode</th><th>Where</th><th>What the student does</th><th>What verifies it</th></tr>
+    <tr><td>1 · Mimic</td><td>Web player</td><td>Clicks and key-presses on screenshots (today’s game)</td><td>The player itself</td></tr>
+    <tr><td>2 · Guided</td><td>Real Blender</td><td>Same steps in Blender, with <strong>assist layers</strong> the student toggles (below)</td><td>Addon checkpoints</td></tr>
+    <tr><td>3 · Free build</td><td>Real Blender</td><td>Builds from the brief alone</td><td>Final-mesh check</td></tr>
+  </table></div>
+  <p>Inside Guided mode, assistance is <strong>layers, not levels</strong> — each one a toggle, so
+  training wheels come off one at a time and the student chooses their own challenge:</p>
+  <ul>
+    <li><strong>Highlights</strong> — the addon points at the UI region/button for the current step</li>
+    <li><strong>Ghost</strong> — the translucent target model in the viewport, on or off at any time</li>
+    <li><strong>Narration</strong> — spoken step instructions</li>
+  </ul>
+  <p class="muted">Scoring honors the layers: finishing with fewer layers on earns more stars.
+  Mastery is re-doing the same bike with everything off — honest pedagogy and free content.</p>
+
+  <h2><span class="tag web">web</span>Accounts &amp; progress</h2>
+  <p>Stays on Cloudflare, no servers: the existing Worker gains an API and a <strong>D1</strong>
+  (SQLite) database. Tables are small: <code>students</code>, <code>quests</code>,
+  <code>step_events</code> (quest, step, timestamp, tries), <code>awards</code>.
+  Progress writes are a beacon per completed step, so resume-where-you-left-off falls out for free.</p>
+  <ul>
+    <li><strong>Kid-safe auth:</strong> a teacher/parent creates a class; students join with a
+    <strong>class code + picture password</strong> (pick 3 icons in order). No student email, no PII
+    beyond a display name — keeps you clear of COPPA headaches. Adults get magic-link email.</li>
+    <li><strong>Sessions:</strong> signed cookie from the Worker; the Blender addon uses the same
+    token so both surfaces write to one progress record.</li>
+    <li>The start screen becomes a <strong>quest map</strong>: cards per quest with per-mode stars and assist-layer badges,
+    the robot walking to the student’s current position on the map.</li>
+  </ul>
+
+  <h2><span class="tag web">web</span>Gamification that teaches, not decorates</h2>
+  <ul>
+    <li><strong>Skill badges tied to real operators:</strong> the hotspot data already knows what each
+    step teaches. Badge names come from Blender’s own vocabulary — <em>Extrude Apprentice</em>,
+    <em>Modifier Wrangler</em>, <em>Loop-Cut Surgeon</em> — earned across quests, not per quest.</li>
+    <li><strong>Stars per level:</strong> 3 for no misses, 2 with a few, 1 for completion. Add a
+    per-step miss counter and this is a one-day change.</li>
+    <li><strong>The robot is the reward:</strong> the mascot rig has 14 animations (we ship 4).
+    Unlock <em>Jump</em>, <em>Yes/No</em>, <em>Punch</em>… and cosmetics rendered from the same rig —
+    hats, colors. Kids grind for their robot, not for a number. (Bonus: the <em>No</em> clip is a
+    perfect gentle wrong-answer shake, and <em>idle→point after 10 s stuck</em> is a built-in hint
+    system.)</li>
+    <li><strong>Streaks &amp; class view:</strong> a teacher dashboard heatmap (students × quests) —
+    D1 query, one page. Leaderboards stay inside a class, opt-in, to keep it kind.</li>
+    <li><strong>Certificates:</strong> a printable per-quest diploma with the robot and the model the
+    student built. Cheap, and kids/parents love paper.</li>
+  </ul>
+
+  <h2><span class="tag addon">addon</span>The Blender companion</h2>
+  <p>A <code>bpy</code> addon with three jobs, in order of build difficulty:</p>
+  <h3>1 · Guide (Guided mode)</h3>
+  <p>The addon fetches the same quest manifest and walks the student step-by-step
+  <em>inside Blender</em>: viewport overlay text for the instruction (same TTS narration via the web
+  session), and a draw-handler highlight on the region/button the step targets. Sync state through
+  the platform API — no local wiring between browser and Blender needed.</p>
+  <h3>2 · Verify (the “that would be cool” part)</h3>
+  <p>After each step the addon checks the <em>scene</em>, not the click: active object and mode,
+  selection counts, modifier stack, transform values, and the operator history
+  (<code>bpy.context.window_manager.operators</code>) to confirm the student used the taught tool
+  rather than an accidental path. Each passed checkpoint posts a signed event
+  (HMAC with the session token) so progress can’t be spoofed by curl. Verification is per-step
+  cheap and free-build capable: the same checks, run once against the finished file.</p>
+  <h3>3 · Record (the multiplier)</h3>
+  <p>The biggest bottleneck in this platform is authoring content. Flip the addon into
+  <strong>recorder mode</strong> while an instructor models something: it captures a screenshot,
+  the mouse/keyboard event, region coordinates, and the operator that ran, for every step —
+  which is <em>exactly</em> the frames + <code>hotspots.json</code> + narration-text format the
+  player consumes. An hour of instructor modeling becomes a quest with near-zero editing, and the
+  operator log doubles as the Guided-mode checkpoint script. This one feature turns MSMD from a game
+  into a content pipeline.</p>
+
+  <h2><span class="tag addon">addon</span>The ghost model</h2>
+  <p>Your instinct is right, and it’s very buildable:</p>
+  <ul>
+    <li>The quest ships a target mesh. The addon imports it as a <strong>non-selectable, x-ray
+    “ghost”</strong> in the student’s scene — same location, translucent wireframe.</li>
+    <li>Verification is geometric similarity: object/vert/face counts, bounding-box fit, then a
+    sampled surface-distance score (chamfer distance is a few lines of <code>mathutils.bvhtree</code>).</li>
+    <li>The gamification hook: <strong>the ghost solidifies as you match it</strong> — sections snap
+    from wireframe to shaded as their distance score passes threshold. The progress bar lives in the
+    3D viewport itself, which is the most Blender-native reward possible.</li>
+  </ul>
+
+  <h2>From the vision boards</h2>
+  <p class="muted">Themes from the “A Path” and UNWASTE FARMS reference boards, translated into
+  platform features:</p>
+  <ul>
+    <li><strong>Publish everything.</strong> The boards attach “video/publish your progress” to every
+    single step. Build it in: every quest completion offers a one-click share render — the student's
+    stats, their robot, a replay of their build — sized for YouTube/shorts. The recorder pipeline
+    that captures instructor content can capture student runs too. Publishing <em>is</em> the
+    portfolio, and the boards treat it as the habit that compounds.</li>
+    <li><strong>Teams, not just individuals.</strong> “Build a team of friends to conquer level 63” —
+    quests should support team runs (relay steps, shared stars) and the farm's class co-op fields
+    are the same idea grown up.</li>
+    <li><strong>Mentors at one hour a week.</strong> The UNWASTE board asks every adult for 1 hr/week.
+    Give that a product surface: a <em>mentor</em> account type attached to a class — sees the
+    heatmap, leaves voice-note encouragement (same TTS/audio plumbing), reviews garden job queues.
+    Low commitment, real leverage.</li>
+    <li><strong>The unwaste loop is the sim's game design.</strong> Black soldier flies turn food
+    waste into feed, fish feed on the flies, water feeds the beets, beets + fish waste become
+    fertilizer. That closed loop is the farm simulation's actual systems diagram — robots tend each
+    stage, and “zero waste” is the score. The sim teaches the real regenerative cycle the boards
+    want built.</li>
+    <li><strong>Seasonal spectacle.</strong> Winter wonderland light gardens from the boards →
+    seasonal events in the sim and, eventually, the real garden: robots hang the lights, and
+    December logins get something worth seeing.</li>
+  </ul>
+
+  <h2>Suggested order</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Phase</th><th>Ships</th><th>Why now</th></tr>
+    <tr><td>1</td><td>Exit/home (in flight), quest-select screen, miss counter + stars, local progress (localStorage)</td><td>Platform shape without any backend</td></tr>
+    <tr><td>2</td><td>Worker API + D1, class codes, picture passwords, resume + teacher heatmap</td><td>Accounts once there’s something to track</td></tr>
+    <tr><td>3</td><td>Badges, robot unlocks, hint/wrong-answer clips, certificates</td><td>Gamification on top of real data</td></tr>
+    <tr><td>4</td><td>Addon: guide + verify checkpoints (Guided mode)</td><td>The bridge into real Blender</td></tr>
+    <tr><td>5</td><td>Ghost layer, recorder mode, free-build verification</td><td>The moat</td></tr>
+    <tr><td>6</td><td>Robot design studio: chassis quests, parts library, glTF export pipeline, “build a friend” quest line</td><td>Kids' own robots, validated by the ghost + free-build machinery</td></tr>
+    <tr><td>7</td><td>The farm: three.js world, block programming, seasons, yield/efficiency leaderboards, class co-op fields</td><td>The digital twin — and the sim-to-real testbed</td></tr>
+    <tr><td>8</td><td>The garden: standardized chassis fleet in a real indoor botanical garden, per-plot cameras + telemetry, daily check-in dashboard, queued/stewarded remote tweaks, time-lapses</td><td>Real robots growing real food — the sim becomes the staging environment</td></tr>
+  </table></div>
+
+  <hr>
+  <p class="muted">Everything above runs on the current stack (Cloudflare Worker + D1 + the static
+  player) plus one Python addon. No servers, no third-party auth vendor required, and the robot rig
+  and TTS pipeline already produce every new asset these features need.</p>
+</main>
+</body>
+</html>
