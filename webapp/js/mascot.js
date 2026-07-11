@@ -1,8 +1,8 @@
 const FPS = 24;
 const FRAME_MS = 1000 / FPS;
-const GUIDE_HEIGHT_RATIO = 0.16;
+const GUIDE_HEIGHT_RATIO = 0.20;
 const GUIDE_MIN_SIZE = 96;
-const GUIDE_MAX_SIZE = 200;
+const GUIDE_MAX_SIZE = 240;
 const GUIDE_GAP = 10;
 const CLIPS = {
   idle: 48,
