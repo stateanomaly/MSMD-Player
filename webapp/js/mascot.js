@@ -5,10 +5,10 @@ const GUIDE_MIN_SIZE = 96;
 const GUIDE_MAX_SIZE = 200;
 const GUIDE_GAP = 10;
 const CLIPS = {
-  idle: 80,
-  wave: 44,
-  thumbsup: 38,
-  dance: 80,
+  idle: 24,
+  wave: 40,
+  thumbsup: 40,
+  dance: 29,
 };
 
 function clamp(value, min, max) {
