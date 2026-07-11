@@ -11,6 +11,12 @@ export function audioFileName(kind, index) {
   return `${kind}${index}${extension}`;
 }
 
+function stopAudioElement(element) {
+  element.pause();
+  element.removeAttribute("src");
+  element.load();
+}
+
 export class AudioManager {
   constructor() {
     this.narration = new Audio();
@@ -33,9 +39,16 @@ export class AudioManager {
   }
 
   stopNarration() {
-    this.narration.pause();
-    this.narration.removeAttribute("src");
-    this.narration.load();
+    stopAudioElement(this.narration);
+  }
+
+  stopCompletion() {
+    stopAudioElement(this.completion);
+  }
+
+  stopAll() {
+    this.stopNarration();
+    this.stopCompletion();
   }
 
   playNarration(url) {
