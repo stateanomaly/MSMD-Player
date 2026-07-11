@@ -56,6 +56,16 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+## Web App
+
+The replacement static web player lives in `webapp/` and uses the staged `csb_msmd001/` content. Build output is written to `dist/` for Cloudflare Workers static assets.
+
+```bash
+bash scripts/build-web.sh
+python3 -m http.server 8341 -d dist
+wrangler deploy
+```
+
 ## Usage
 
 ### Running the Application

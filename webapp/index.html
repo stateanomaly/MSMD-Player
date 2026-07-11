@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MSMD Player</title>
+    <link rel="stylesheet" href="./css/styles.css">
+  </head>
+  <body>
+    <main id="app">
+      <section id="start-screen" class="start-screen" aria-labelledby="app-title">
+        <div class="start-panel">
+          <p class="eyebrow">MSMD Player</p>
+          <h1 id="app-title">Monkey See Monkey Do</h1>
+          <p id="level-set-name" class="level-set">Loading content...</p>
+          <button id="start-button" class="primary-button" type="button" disabled>Start</button>
+          <p id="load-error" class="load-error" role="alert" hidden></p>
+        </div>
+      </section>
+
+      <section id="game-screen" class="game-screen" aria-label="MSMD gameplay" hidden>
+        <div id="progress-chip" class="progress-chip">Level 1/10 · Step 1/1</div>
+        <div id="play-surface" class="play-surface" tabindex="0" aria-label="Game input surface">
+          <img id="frame-image" class="frame-image" alt="">
+          <div id="hotspot" class="hotspot" hidden></div>
+          <div id="key-prompt" class="key-prompt" hidden></div>
+        </div>
+        <img id="mascot" class="mascot" alt="" aria-hidden="true" hidden>
+        <div id="win-overlay" class="win-overlay" hidden>
+          <div class="win-panel" role="dialog" aria-labelledby="win-title" aria-modal="true">
+            <h2 id="win-title">You Win!</h2>
+            <p id="elapsed-time">0.00 seconds</p>
+            <button id="play-again-button" class="primary-button" type="button">Play Again</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>
