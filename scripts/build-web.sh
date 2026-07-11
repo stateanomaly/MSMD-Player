@@ -17,7 +17,7 @@ for level_dir in "$CONTENT_DIR"/csb*; do
   [[ -d "$level_dir" ]] || continue
   level_name="$(basename "$level_dir")"
   mkdir -p "$DIST_DIR/content/csb_msmd001/$level_name"
-  find "$level_dir" -maxdepth 1 -type f \( -name '*.png' -o -name '*.wav' \) \
+  find "$level_dir" -maxdepth 1 -type f \( -name '*.png' -o -name '*.mp3' -o -name '*.wav' \) \
     -exec cp {} "$DIST_DIR/content/csb_msmd001/$level_name/" \;
 done
 

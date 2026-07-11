@@ -1,4 +1,4 @@
-import { AudioManager } from "./audio.js";
+import { AudioManager, audioFileName } from "./audio.js";
 import { GameEngine } from "./engine.js";
 import { InputController } from "./input.js";
 import { MascotAnimator } from "./mascot.js";
@@ -35,10 +35,11 @@ function assetUrl(level, fileName) {
 
 function audioUrl(level, kind, index) {
   const available = level.audio?.[kind] || [];
-  if (!available.includes(index)) {
+  const fileName = audioFileName(kind, index);
+  if (!fileName || !Array.isArray(available) || !available.includes(fileName)) {
     return "";
   }
-  return assetUrl(level, `${kind}${index}.wav`);
+  return assetUrl(level, fileName);
 }
 
 function imageRect() {

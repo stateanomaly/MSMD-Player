@@ -1,3 +1,16 @@
+const AUDIO_EXTENSIONS = Object.freeze({
+  say: ".mp3",
+  sound: ".wav",
+});
+
+export function audioFileName(kind, index) {
+  const extension = AUDIO_EXTENSIONS[kind];
+  if (!extension || !Number.isInteger(index) || index < 0) {
+    return "";
+  }
+  return `${kind}${index}${extension}`;
+}
+
 export class AudioManager {
   constructor() {
     this.narration = new Audio();

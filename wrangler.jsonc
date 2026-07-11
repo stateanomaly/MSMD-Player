@@ -1,5 +1,6 @@
 {
   "name": "play",
+  "account_id": "fefed7f6d10f50e335afa3ff310cc242",
   "compatibility_date": "2026-07-10",
   "assets": {
     "directory": "./dist"
