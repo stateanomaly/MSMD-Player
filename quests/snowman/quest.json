@@ -29,7 +29,7 @@
       "narration_text": "Let's make it a big belly! Press S, type one point five, and hit Enter.",
       "goal": "Scale the sphere up to 1.5",
       "target": { "kind": "none" },
-      "check": { "all": [ { "type": "operator", "id": "transform.resize" }, { "type": "object_attr", "name": "Sphere", "attr": "scale.x", "op": "gte", "value": 1.3 } ] },
+      "check": { "type": "object_attr", "name": "Sphere", "attr": "scale.x", "op": "gte", "value": 1.3 },
       "timeout_s": 45
     },
     {
