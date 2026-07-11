@@ -15,6 +15,9 @@ for icon in ['MSMD32.png', 'refresh.png', 'settings.png']:
     if Path(icon).exists():
         datas.append((icon, '.'))
 
+if Path('assets').exists():
+    datas.append(('assets', 'assets'))
+
 a = Analysis(
     ['MSMD_multiLevel.py'],
     pathex=[],

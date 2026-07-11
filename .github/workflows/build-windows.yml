@@ -23,7 +23,7 @@ jobs:
           pip install -r requirements.txt pyinstaller
 
       - name: Build one-file executable
-        run: pyinstaller --onefile --windowed --name MSMD --add-data "config.ini;." MSMD_multiLevel.py
+        run: pyinstaller --onefile --windowed --name MSMD --add-data "config.ini;." --add-data "assets;assets" MSMD_multiLevel.py
 
       - name: Upload executable
         uses: actions/upload-artifact@v4

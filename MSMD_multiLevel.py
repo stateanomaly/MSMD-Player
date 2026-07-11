@@ -20,13 +20,14 @@ Version History:
 import sys
 import os
 import time
+import random
 from pathlib import Path
 from PyQt5.QtWidgets import (QApplication, QWidget, QLineEdit, QFileDialog,
 QPushButton, QLabel, QHBoxLayout, QVBoxLayout, QMessageBox, QStackedLayout,
 QGraphicsScene, QGraphicsView, QDesktopWidget, QGraphicsEllipseItem,
 QGraphicsItem)
 from PyQt5.QtGui import QIcon, QImage, QPixmap, QColor, QBrush, QPen
-from PyQt5.QtCore import Qt, QRect, QUrl, pyqtSignal
+from PyQt5.QtCore import Qt, QRect, QUrl, pyqtSignal, QTimer, QEvent
 from PyQt5.QtMultimedia import QSoundEffect
 #this is the pyserial package (can be installed using pip)
 import serial
@@ -66,10 +67,24 @@ upgrademode = both
 minpowertomove = 55
 maxpowertomove = 95
 showReferenceCreator = 0
+showMascot = 1
 """
         config_path.write_text(default_config)
         print(f'Created default config at: {config_path}')
     return config_path
+
+def getMascotAssetPath():
+    """Find the mascot asset directory from source or a PyInstaller bundle."""
+    base_paths = []
+    if hasattr(sys, '_MEIPASS'):
+        base_paths.append(Path(sys._MEIPASS))
+    base_paths.append(Path(__file__).resolve().parent)
+
+    for base_path in base_paths:
+        mascot_path = base_path / 'assets' / 'mascot'
+        if mascot_path.is_dir():
+            return mascot_path
+    return None
 
 textToScanCodeTable = {}
 def buildScanCodeTranslationTable (hotSpotDict):
@@ -147,8 +162,139 @@ class GraphicsView(QGraphicsView):
                 modifierTextList.append('win')
 
         return modifierTextList
-    
-        
+
+
+class MascotOverlay(QWidget):
+    frameRate = 24
+    margin = 16
+    minSize = 160
+    maxSize = 420
+
+    def __init__(self, parent=None, enabled=True):
+        super(MascotOverlay, self).__init__(parent)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.setAutoFillBackground(False)
+
+        self.mascotPath = getMascotAssetPath()
+        self.enabled = enabled and self.mascotPath is not None
+        self.frameCache = {}
+        self.currentFrames = []
+        self.currentClip = None
+        self.currentFrameIndex = 0
+        self.loop = False
+
+        self.frameLabel = QLabel(self)
+        self.frameLabel.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.frameLabel.setAlignment(Qt.AlignCenter)
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(round(1000 / self.frameRate))
+        self.timer.timeout.connect(self.advanceFrame)
+
+        if parent is not None:
+            parent.installEventFilter(self)
+        self.reposition()
+        self.hide()
+
+    def play(self, clip, loop=False):
+        if not self.enabled:
+            return
+
+        frames = self.loadFrames(clip)
+        if not frames:
+            self.enabled = False
+            self.stop()
+            return
+
+        self.currentClip = clip
+        self.currentFrames = frames
+        self.currentFrameIndex = 0
+        self.loop = loop
+        self.reposition()
+        self.showCurrentFrame()
+        self.show()
+        self.raise_()
+        self.timer.start()
+
+    def stop(self):
+        self.timer.stop()
+        self.currentFrames = []
+        self.currentClip = None
+        self.currentFrameIndex = 0
+        self.loop = False
+        self.frameLabel.clear()
+        self.hide()
+
+    def loadFrames(self, clip):
+        if clip in self.frameCache:
+            return self.frameCache[clip]
+        if self.mascotPath is None:
+            return []
+
+        clipPath = self.mascotPath / clip
+        if not clipPath.is_dir():
+            return []
+
+        frameFiles = sorted(clipPath.glob('frame_*.png'))
+        if not frameFiles:
+            return []
+
+        frames = []
+        for frameFile in frameFiles:
+            pixmap = QPixmap(str(frameFile))
+            if pixmap.isNull():
+                return []
+            frames.append(pixmap)
+
+        self.frameCache[clip] = frames
+        return frames
+
+    def advanceFrame(self):
+        if not self.currentFrames:
+            self.stop()
+            return
+
+        if self.currentFrameIndex >= len(self.currentFrames) - 1:
+            if self.loop:
+                self.currentFrameIndex = 0
+                self.showCurrentFrame()
+            else:
+                self.stop()
+            return
+
+        self.currentFrameIndex += 1
+        self.showCurrentFrame()
+
+    def showCurrentFrame(self):
+        if not self.currentFrames:
+            return
+
+        pixmap = self.currentFrames[self.currentFrameIndex]
+        scaledPixmap = pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.frameLabel.setPixmap(scaledPixmap)
+
+    def reposition(self):
+        parent = self.parentWidget()
+        if parent is None:
+            return
+
+        parentGeometry = parent.geometry()
+        size = round(parentGeometry.height() * 0.28)
+        size = max(self.minSize, min(self.maxSize, size))
+        x = parentGeometry.width() - size - self.margin
+        y = parentGeometry.height() - size - self.margin
+        self.setGeometry(x, y, size, size)
+        self.frameLabel.setGeometry(0, 0, size, size)
+        self.showCurrentFrame()
+        self.raise_()
+
+    def eventFilter(self, watched, event):
+        if watched is self.parentWidget() and event.type() in (QEvent.Resize, QEvent.Show):
+            self.reposition()
+        return super(MascotOverlay, self).eventFilter(watched, event)
+
+
 class App(QWidget):
     cleanupEvent = pyqtSignal()
     
@@ -294,6 +440,7 @@ class App(QWidget):
         self.setGeometry(self.left, self.top, self.width, self.height)
         if os.path.exists('MSMD32.png'):
             self.setWindowIcon(QIcon('MSMD32.png'))
+        self.mascotOverlay = MascotOverlay(self, self.showMascot != 0)
         self.cleanupEvent.connect(self.cleanupStuff)
         self.show()
         self.bringToFront()
@@ -314,6 +461,7 @@ class App(QWidget):
         self.minPowerToMove = self.robotSettings['minPowerToMove']
         self.maxPowerToMove = self.robotSettings['maxPowerToMove']
         self.showReferenceCreator = int(self.robotSettings.get('showReferenceCreator', '0'))
+        self.showMascot = int(self.robotSettings.get('showMascot', '1'))
         
     def writeConfig(self):
         self.robotSettings['upgradeTrigger'] = self.upgradeTrigger
@@ -591,7 +739,21 @@ class App(QWidget):
             return
         self.completionSound.setSource(QUrl.fromLocalFile(soundFilename))
         self.completionSound.play()
-        
+
+    def playMascotCheer(self):
+        if self.showMascot == 0:
+            return
+        self.mascotOverlay.play(random.choice(('wave', 'thumbsup')))
+
+    def playMascotCelebration(self):
+        if self.showMascot == 0:
+            return
+        self.mascotOverlay.play('dance', loop=True)
+
+    def stopMascot(self):
+        if hasattr(self, 'mascotOverlay'):
+            self.mascotOverlay.stop()
+
     def hotSpotClickedHandler(self, itemClicked, modifiers, mouseButton):
                                                     
         print('itemClicked %s, self.currentHotSpot %s, mouseButton %s' % (itemClicked, self.currentHotSpot, mouseButton))
@@ -600,9 +762,10 @@ class App(QWidget):
             if self.checkModifierMatch(modifiers):
                 if self.checkButtonMatch(mouseButton):
                     #print('clicked on hot spot!')
-                    
+
                     self.playSound()
-                    
+                    self.playMascotCheer()
+
                     self.currentImageNumber += 1
                     self.currentTotalImageNumber += 1
                     if self.currentImageNumber >= self.numImages:
@@ -636,9 +799,10 @@ class App(QWidget):
         print('scanCode %s, currentInputKey %s' % (nativeScanCode, self.currentInputKey))
         if (nativeScanCode == self.currentInputKey) and self.checkModifierMatch(modifiers):
             #print('pressed correct key (or key combination)')
-           
+
             self.playSound()
-            
+            self.playMascotCheer()
+
             self.currentImageNumber += 1
             self.currentTotalImageNumber += 1
             if self.currentImageNumber >= self.numImages:
@@ -713,7 +877,11 @@ class App(QWidget):
         self.currentPixmap = None
         self.currentPixmap = self.scaledPixmapList[self.numImages]
         self.scene.addPixmap(self.currentPixmap)
-        buttonReply = QMessageBox.information(self, 'You Win!', 'Congradulations, You Won!\nYou completed the game in ' + "%.2f" % (self.endTime-self.startTime) + ' seconds', QMessageBox.Ok | QMessageBox.Close)
+        self.playMascotCelebration()
+        try:
+            buttonReply = QMessageBox.information(self, 'You Win!', 'Congradulations, You Won!\nYou completed the game in ' + "%.2f" % (self.endTime-self.startTime) + ' seconds', QMessageBox.Ok | QMessageBox.Close)
+        finally:
+            self.stopMascot()
         if buttonReply == QMessageBox.Ok:
             self.stackedLayout.setCurrentIndex(0)
             self.showNormal()
