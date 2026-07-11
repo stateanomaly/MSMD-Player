@@ -228,6 +228,12 @@ h1 {
   filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.42));
 }
 
+.mascot.is-guiding {
+  right: auto;
+  bottom: auto;
+  object-fit: contain;
+}
+
 .win-overlay {
   position: fixed;
   inset: 0;
