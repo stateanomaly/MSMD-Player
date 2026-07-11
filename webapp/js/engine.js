@@ -10,11 +10,15 @@ export class GameEngine {
     this.callbacks = callbacks;
     this.completionDelayMs = 900;
     this.pendingTimer = 0;
+    this.pendingTimerStartedAt = 0;
+    this.pendingTimerDelayMs = 0;
+    this.pausedCompletionDelayMs = null;
     this.reset();
   }
 
   reset() {
     this.clearPendingTimer();
+    this.pausedCompletionDelayMs = null;
     this.currentLevelIndex = 0;
     this.currentStepIndex = 0;
     this.completedSteps = 0;
@@ -86,16 +90,7 @@ export class GameEngine {
       totalLevels: this.manifest.levels.length,
     });
 
-    this.pendingTimer = window.setTimeout(() => {
-      this.pendingTimer = 0;
-      if (this.currentLevelIndex >= this.manifest.levels.length - 1) {
-        this.win();
-        return;
-      }
-      this.currentLevelIndex += 1;
-      this.currentStepIndex = 0;
-      this.showCurrentStep();
-    }, this.completionDelayMs);
+    this.scheduleLevelAdvance(this.completionDelayMs);
   }
 
   win() {
@@ -109,10 +104,58 @@ export class GameEngine {
     });
   }
 
+  scheduleLevelAdvance(delayMs) {
+    this.clearPendingTimer();
+    this.pausedCompletionDelayMs = null;
+    this.pendingTimerStartedAt = performance.now();
+    this.pendingTimerDelayMs = delayMs;
+    this.pendingTimer = window.setTimeout(() => {
+      this.advanceLevelCompletion();
+    }, delayMs);
+  }
+
+  advanceLevelCompletion() {
+    this.pendingTimer = 0;
+    this.pendingTimerStartedAt = 0;
+    this.pendingTimerDelayMs = 0;
+    if (this.currentLevelIndex >= this.manifest.levels.length - 1) {
+      this.win();
+      return;
+    }
+    this.currentLevelIndex += 1;
+    this.currentStepIndex = 0;
+    this.showCurrentStep();
+  }
+
+  pause() {
+    if (!this.pendingTimer) {
+      return;
+    }
+
+    const elapsedMs = performance.now() - this.pendingTimerStartedAt;
+    this.pausedCompletionDelayMs = Math.max(0, this.pendingTimerDelayMs - elapsedMs);
+    window.clearTimeout(this.pendingTimer);
+    this.pendingTimer = 0;
+    this.pendingTimerStartedAt = 0;
+    this.pendingTimerDelayMs = 0;
+  }
+
+  resume() {
+    if (this.state !== "level-complete" || this.pendingTimer || this.pausedCompletionDelayMs === null) {
+      return;
+    }
+
+    const delayMs = this.pausedCompletionDelayMs;
+    this.pausedCompletionDelayMs = null;
+    this.scheduleLevelAdvance(delayMs);
+  }
+
   clearPendingTimer() {
     if (this.pendingTimer) {
       window.clearTimeout(this.pendingTimer);
       this.pendingTimer = 0;
     }
+    this.pendingTimerStartedAt = 0;
+    this.pendingTimerDelayMs = 0;
   }
 }

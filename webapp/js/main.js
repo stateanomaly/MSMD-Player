@@ -12,6 +12,11 @@ const levelSetName = document.querySelector("#level-set-name");
 const loadError = document.querySelector("#load-error");
 const startButton = document.querySelector("#start-button");
 const playAgainButton = document.querySelector("#play-again-button");
+const homeButton = document.querySelector("#home-button");
+const exitButton = document.querySelector("#exit-button");
+const exitConfirmOverlay = document.querySelector("#exit-confirm-overlay");
+const keepPlayingButton = document.querySelector("#keep-playing-button");
+const leaveButton = document.querySelector("#leave-button");
 const playSurface = document.querySelector("#play-surface");
 const frameImage = document.querySelector("#frame-image");
 const hotspot = document.querySelector("#hotspot");
@@ -28,6 +33,7 @@ let manifest = null;
 let engine = null;
 let input = null;
 let currentStep = null;
+let exitConfirmOpen = false;
 
 function assetUrl(level, fileName) {
   return `./${level.path}/${fileName}`;
@@ -189,6 +195,83 @@ function hidePrompts() {
   keyPrompt.replaceChildren();
 }
 
+function isGameplayActive() {
+  return !gameScreen.hidden && winOverlay.hidden;
+}
+
+function showExitButton() {
+  exitButton.hidden = false;
+  exitButton.disabled = false;
+}
+
+function hideExitButton() {
+  exitButton.hidden = true;
+  exitButton.disabled = true;
+}
+
+function resumeGameplayAfterConfirm() {
+  engine?.resume();
+
+  if (!engine?.getExpectedInput()) {
+    input?.setEnabled(false);
+    return;
+  }
+
+  renderStepMascot(currentStep);
+  input.setEnabled(true);
+  audio.playNarration(audioUrl(engine.currentLevel, "say", engine.currentStepIndex));
+  playSurface.focus({ preventScroll: true });
+}
+
+function showExitConfirm() {
+  if (!isGameplayActive() || exitConfirmOpen) {
+    return;
+  }
+
+  exitConfirmOpen = true;
+  exitConfirmOverlay.hidden = false;
+  exitButton.disabled = true;
+  input?.setEnabled(false);
+  audio.stopNarration();
+  mascot.stop();
+  engine?.pause();
+  keepPlayingButton.focus({ preventScroll: true });
+}
+
+function dismissExitConfirm() {
+  if (!exitConfirmOpen) {
+    return;
+  }
+
+  exitConfirmOpen = false;
+  exitConfirmOverlay.hidden = true;
+  exitButton.disabled = false;
+  resumeGameplayAfterConfirm();
+}
+
+function returnToStartScreen() {
+  exitConfirmOpen = false;
+  exitConfirmOverlay.hidden = true;
+  input?.setEnabled(false);
+  hidePrompts();
+  audio.stopAll();
+  mascot.stop();
+  mascot.dock();
+  engine?.reset();
+  winOverlay.hidden = true;
+  elapsedTime.textContent = "0.00 seconds";
+  frameImage.removeAttribute("src");
+  if (manifest) {
+    setProgress(`Level 1/${manifest.levels.length} · Step 1/1`);
+  }
+  hideExitButton();
+  gameScreen.hidden = true;
+  startScreen.hidden = false;
+  if (!startButton.disabled) {
+    startButton.focus({ preventScroll: true });
+  }
+}
+
 function handleStep({ level, levelIndex, stepIndex, stepKey, totalLevels }) {
   const step = level.hotspots[stepKey];
   currentStep = step;
@@ -196,6 +279,11 @@ function handleStep({ level, levelIndex, stepIndex, stepKey, totalLevels }) {
   setProgress(`Level ${levelIndex + 1}/${totalLevels} · Step ${stepIndex + 1}/${level.interactiveStepCount}`);
   renderKeyPrompt(step);
   renderHotspot(step);
+  showExitButton();
+  if (exitConfirmOpen) {
+    input.setEnabled(false);
+    return;
+  }
   renderStepMascot(step);
   input.setEnabled(true);
   audio.playNarration(audioUrl(level, "say", stepIndex));
@@ -221,6 +309,9 @@ function handleWin({ elapsedSeconds }) {
   audio.stopNarration();
   setProgress("Game complete");
   elapsedTime.textContent = `${elapsedSeconds.toFixed(2)} seconds`;
+  exitConfirmOpen = false;
+  exitConfirmOverlay.hidden = true;
+  hideExitButton();
   winOverlay.hidden = false;
   mascot.dock();
   mascot.loop("dance");
@@ -232,6 +323,9 @@ function handleResize() {
     return;
   }
   renderHotspot(currentStep);
+  if (exitConfirmOpen) {
+    return;
+  }
   renderStepMascot(currentStep);
 }
 
@@ -266,19 +360,39 @@ function prepareGame() {
 
 async function startGame() {
   await audio.unlock().catch(() => {});
+  exitConfirmOpen = false;
+  exitConfirmOverlay.hidden = true;
   winOverlay.hidden = true;
   mascot.stop();
   mascot.dock();
   startScreen.hidden = true;
   gameScreen.hidden = false;
+  showExitButton();
   engine.start();
 }
 
 function playAgain() {
+  exitConfirmOpen = false;
+  exitConfirmOverlay.hidden = true;
   winOverlay.hidden = true;
   mascot.stop();
   mascot.dock();
+  showExitButton();
   engine.start();
+}
+
+function handleWindowKeyDown(event) {
+  if (event.key !== "Escape" || !isGameplayActive()) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (exitConfirmOpen) {
+    dismissExitConfirm();
+    return;
+  }
+  showExitConfirm();
 }
 
 async function init() {
@@ -295,7 +409,12 @@ async function init() {
 
 startButton.addEventListener("click", startGame);
 playAgainButton.addEventListener("click", playAgain);
+homeButton.addEventListener("click", returnToStartScreen);
+exitButton.addEventListener("click", showExitConfirm);
+keepPlayingButton.addEventListener("click", dismissExitConfirm);
+leaveButton.addEventListener("click", returnToStartScreen);
 frameImage.addEventListener("load", handleResize);
+window.addEventListener("keydown", handleWindowKeyDown, { capture: true });
 window.addEventListener("resize", handleResize);
 
 void init();

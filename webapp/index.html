@@ -20,6 +20,7 @@
 
       <section id="game-screen" class="game-screen" aria-label="MSMD gameplay" hidden>
         <div id="progress-chip" class="progress-chip">Level 1/10 · Step 1/1</div>
+        <button id="exit-button" class="exit-button" type="button" aria-label="Exit game">Exit</button>
         <div id="play-surface" class="play-surface" tabindex="0" aria-label="Game input surface">
           <img id="frame-image" class="frame-image" alt="">
           <div id="hotspot" class="hotspot" hidden></div>
@@ -30,7 +31,19 @@
           <div class="win-panel" role="dialog" aria-labelledby="win-title" aria-modal="true">
             <h2 id="win-title">You Win!</h2>
             <p id="elapsed-time">0.00 seconds</p>
-            <button id="play-again-button" class="primary-button" type="button">Play Again</button>
+            <div class="win-actions">
+              <button id="play-again-button" class="primary-button" type="button">Play Again</button>
+              <button id="home-button" class="secondary-button" type="button">Home</button>
+            </div>
+          </div>
+        </div>
+        <div id="exit-confirm-overlay" class="confirm-overlay" hidden>
+          <div class="confirm-panel" role="dialog" aria-labelledby="exit-confirm-title" aria-modal="true">
+            <h2 id="exit-confirm-title">Leave the game?</h2>
+            <div class="dialog-actions">
+              <button id="keep-playing-button" class="secondary-button" type="button">Keep playing</button>
+              <button id="leave-button" class="primary-button" type="button">Leave</button>
+            </div>
           </div>
         </div>
       </section>
