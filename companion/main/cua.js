@@ -2,6 +2,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { EventEmitter } = require("node:events");
+const { createCuaProvider } = require("./cua-providers");
 
 const SYSTEM_PROMPT =
   "You are the brain of a surfer-dude dragonfly mascot guiding a kid (about 7-10 years old) through Blender. Given the current quest step's goal, the kid's recent actions, and a screenshot of their Blender window, judge whether they're on track. steer_line must be one short spoken sentence, at most 20 words, laid-back surfer voice, kid-safe, encouraging, never scolding, no emojis. If pointing at a spot in the UI would help, set point to its normalized screenshot coordinates, else null.";
@@ -64,88 +65,6 @@ function buildUserText({ quest, step, recentEvents, snapshot, secondsSinceActivi
   ].join("\n");
 }
 
-async function callClaudeAssessment(options) {
-  const { apiKey, model, screenshotPng, systemPrompt, userText } = options;
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is required for CUA assessment");
-  }
-
-  const mod = await import("@anthropic-ai/sdk");
-  const Anthropic = mod.Anthropic || mod.default;
-  const client = new Anthropic({ apiKey });
-  const response = await client.messages.create({
-    model,
-    max_tokens: 1024,
-    system: systemPrompt,
-    tools: [
-      {
-        name: "report_assessment",
-        description: "Report whether the child is on track and optionally provide one short steering line.",
-        input_schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            assessment: {
-              type: "string",
-              enum: ["on_track", "off_track", "stuck"],
-            },
-            steer_line: {
-              type: "string",
-              maxLength: 160,
-            },
-            point: {
-              anyOf: [
-                {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    x: { type: "number", minimum: 0, maximum: 1 },
-                    y: { type: "number", minimum: 0, maximum: 1 },
-                  },
-                  required: ["x", "y"],
-                },
-                { type: "null" },
-              ],
-            },
-          },
-          required: ["assessment", "steer_line", "point"],
-        },
-      },
-    ],
-    tool_choice: {
-      type: "tool",
-      name: "report_assessment",
-    },
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: "image/png",
-              data: screenshotPng.toString("base64"),
-            },
-          },
-          {
-            type: "text",
-            text: userText,
-          },
-        ],
-      },
-    ],
-  });
-
-  const toolUse = response.content?.find(
-    (block) => block.type === "tool_use" && block.name === "report_assessment"
-  );
-  if (!toolUse) {
-    throw new Error("Claude response did not include report_assessment tool_use");
-  }
-  return sanitizeAssessment(toolUse.input);
-}
-
 class CuaController extends EventEmitter {
   constructor(options = {}) {
     super();
@@ -157,7 +76,14 @@ class CuaController extends EventEmitter {
     this.dryRun = Boolean(options.dryRun);
     this.logger = options.logger || console;
     this.enabled = Boolean(this.config.cua?.enabled || this.dryRun);
-    this.model = this.config.cua?.model || "claude-opus-4-8";
+    this.provider =
+      options.provider ||
+      createCuaProvider({
+        config: this.config,
+        fetchImpl: options.fetchImpl,
+        logger: this.logger,
+        userDataPath: options.userDataPath,
+      });
     this.cooldownS = Number(this.config.cua?.cooldownS || 30);
     this.maxPerStep = Number(this.config.cua?.maxPerStep || 3);
     this.currentStep = null;
@@ -319,13 +245,13 @@ class CuaController extends EventEmitter {
         return;
       }
 
-      const assessment = await callClaudeAssessment({
-        apiKey: this.config.anthropicApiKey,
-        model: this.model,
-        screenshotPng,
-        systemPrompt: SYSTEM_PROMPT,
-        userText,
-      });
+      const assessment = sanitizeAssessment(
+        await this.provider.assess({
+          screenshotPng,
+          systemPrompt: SYSTEM_PROMPT,
+          userText,
+        })
+      );
 
       if (!["off_track", "stuck"].includes(assessment.assessment) || !assessment.steer_line) {
         return;

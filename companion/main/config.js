@@ -8,21 +8,34 @@ const DEFAULT_CONFIG = Object.freeze({
   autoLaunchBlender: true,
   cua: Object.freeze({
     enabled: false,
+    provider: "openai",
     model: "claude-opus-4-8",
+    openai: Object.freeze({
+      auth: "oauth",
+      model: "gpt-5.5",
+      codexAuthPath: "~/.codex/auth.json",
+    }),
     cooldownS: 30,
     maxPerStep: 3,
   }),
   anthropicApiKey: "",
+  openaiApiKey: "",
   elevenLabsApiKey: "",
 });
 
 function mergeConfig(base, override) {
+  const baseCua = base.cua || {};
+  const overrideCua = (override && override.cua) || {};
   const next = {
     ...base,
     ...(override || {}),
     cua: {
-      ...(base.cua || {}),
-      ...((override && override.cua) || {}),
+      ...baseCua,
+      ...overrideCua,
+      openai: {
+        ...(baseCua.openai || {}),
+        ...(overrideCua.openai || {}),
+      },
     },
   };
   return next;
@@ -63,6 +76,9 @@ function loadConfig(options = {}) {
 
   if (process.env.ANTHROPIC_API_KEY) {
     config.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  }
+  if (process.env.OPENAI_API_KEY) {
+    config.openaiApiKey = process.env.OPENAI_API_KEY;
   }
   if (process.env.ELEVENLABS_API_KEY) {
     config.elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
