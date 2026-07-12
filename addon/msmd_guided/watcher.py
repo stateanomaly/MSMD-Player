@@ -11,6 +11,7 @@ import bpy
 from bpy.app.handlers import persistent
 
 from . import checks
+from .guard import GuardEpisode
 
 
 TIMER_INTERVAL = 0.2
@@ -32,6 +33,10 @@ _step_by_id: dict[str, dict[str, Any]] = {}
 _active_step_id: str | None = None
 _active_check: dict[str, Any] | None = None
 _step_op_log: list[str] = []
+_last_non_harmless_step_op = ""
+_guard_check: dict[str, Any] | None = None
+_guard_step_id = "initial"
+_guard_episode = GuardEpisode()
 
 
 @persistent
@@ -101,6 +106,9 @@ def tick() -> float:
         if checks.evaluate(_active_check, _last_snapshot, _step_op_log):
             _verify_active_step()
 
+    if _last_snapshot is not None:
+        _tick_guard()
+
     return TIMER_INTERVAL
 
 
@@ -168,7 +176,8 @@ def _reset_runtime_state() -> None:
     global _dirty, _force_snapshot, _tick_count, _last_snapshot
     global _last_operator_pointer, _last_operator_len
     global _quest_id, _harmless_ops, _steps, _step_by_id
-    global _active_step_id, _active_check, _step_op_log
+    global _active_step_id, _active_check, _step_op_log, _last_non_harmless_step_op
+    global _guard_check, _guard_step_id
 
     _dirty = True
     _force_snapshot = False
@@ -183,6 +192,10 @@ def _reset_runtime_state() -> None:
     _active_step_id = None
     _active_check = None
     _step_op_log = []
+    _last_non_harmless_step_op = ""
+    _guard_check = None
+    _guard_step_id = "initial"
+    _guard_episode.reset()
 
 
 def _drain_inbox() -> None:
@@ -221,11 +234,13 @@ def _handle_message(message: dict[str, Any]) -> None:
 
 def _handle_quest_load(message: dict[str, Any]) -> None:
     global _quest_id, _harmless_ops, _steps, _step_by_id
-    global _active_step_id, _active_check, _step_op_log
+    global _active_step_id, _active_check, _step_op_log, _last_non_harmless_step_op
+    global _guard_check, _guard_step_id
 
     quest_id = message.get("quest_id")
     steps = message.get("steps")
     harmless_ops = message.get("harmless_ops", [])
+    initial_state = message.get("initial_state")
 
     if not isinstance(quest_id, str) or not isinstance(steps, list):
         _enqueue(
@@ -234,6 +249,27 @@ def _handle_quest_load(message: dict[str, Any]) -> None:
                 "quest_id": quest_id,
                 "ok": False,
                 "error": "quest_id must be a string and steps must be a list",
+            }
+        )
+        return
+
+    if initial_state is not None and not isinstance(initial_state, dict):
+        _enqueue(
+            {
+                "type": "quest_loaded",
+                "quest_id": quest_id,
+                "ok": False,
+                "error": "initial_state must be an object when present",
+            }
+        )
+        return
+    if _operator_predicate_ids(initial_state):
+        _enqueue(
+            {
+                "type": "quest_loaded",
+                "quest_id": quest_id,
+                "ok": False,
+                "error": "initial_state must not contain operator predicates",
             }
         )
         return
@@ -263,7 +299,49 @@ def _handle_quest_load(message: dict[str, Any]) -> None:
                 }
             )
             return
-        loaded_step = {"id": step_id, "check": check}
+        state_after = step.get("state_after")
+        if state_after is not None and not isinstance(state_after, dict):
+            _enqueue(
+                {
+                    "type": "quest_loaded",
+                    "quest_id": quest_id,
+                    "ok": False,
+                    "error": f"state_after for step {step_id} must be an object when present",
+                }
+            )
+            return
+        if _operator_predicate_ids(state_after):
+            _enqueue(
+                {
+                    "type": "quest_loaded",
+                    "quest_id": quest_id,
+                    "ok": False,
+                    "error": f"state_after for step {step_id} must not contain operator predicates",
+                }
+            )
+            return
+
+        expected_ops = step.get("expected_ops", [])
+        if expected_ops is None:
+            expected_ops = []
+        if not isinstance(expected_ops, list):
+            _enqueue(
+                {
+                    "type": "quest_loaded",
+                    "quest_id": quest_id,
+                    "ok": False,
+                    "error": f"expected_ops for step {step_id} must be a list when present",
+                }
+            )
+            return
+
+        loaded_step = {
+            "id": step_id,
+            "check": check,
+            "expected_ops": [op for op in expected_ops if isinstance(op, str)],
+        }
+        if state_after is not None:
+            loaded_step["state_after"] = state_after
         loaded_steps.append(loaded_step)
         step_by_id[step_id] = loaded_step
 
@@ -274,11 +352,15 @@ def _handle_quest_load(message: dict[str, Any]) -> None:
     _active_step_id = None
     _active_check = None
     _step_op_log = []
+    _last_non_harmless_step_op = ""
+    _guard_check = initial_state
+    _guard_step_id = "initial"
+    _guard_episode.reset()
     _enqueue({"type": "quest_loaded", "quest_id": quest_id, "ok": True})
 
 
 def _handle_step_begin(message: dict[str, Any]) -> None:
-    global _active_step_id, _active_check, _step_op_log, _dirty
+    global _active_step_id, _active_check, _step_op_log, _last_non_harmless_step_op, _dirty
 
     step_id = message.get("step_id")
     step = _step_by_id.get(step_id)
@@ -289,6 +371,8 @@ def _handle_step_begin(message: dict[str, Any]) -> None:
     _active_step_id = step_id
     _active_check = step["check"]
     _step_op_log = []
+    _last_non_harmless_step_op = ""
+    _guard_episode.reset()
     _dirty = True
     _mark_operator_tail()
 
@@ -352,7 +436,7 @@ def _operator_history() -> list[Any]:
 
 
 def _emit_operator(op: Any) -> None:
-    global _step_op_log
+    global _step_op_log, _last_non_harmless_step_op
 
     op_id = _normalize_operator_id(_operator_id(op))
     if not op_id:
@@ -361,6 +445,8 @@ def _emit_operator(op: Any) -> None:
     classification = _classify_operator(op_id)
     if _active_step_id:
         _step_op_log.append(op_id)
+        if classification != "harmless":
+            _last_non_harmless_step_op = op_id
 
     now = time.time()
     _enqueue(
@@ -389,6 +475,10 @@ def _classify_operator(op_id: str) -> str:
     for pattern in _operator_predicate_ids(_active_check):
         if fnmatch.fnmatchcase(op_id, pattern):
             return "expected"
+    active_step = _step_by_id.get(_active_step_id)
+    for pattern in active_step.get("expected_ops", []) if active_step else []:
+        if fnmatch.fnmatchcase(op_id, pattern):
+            return "expected"
     for pattern in _harmless_ops:
         if fnmatch.fnmatchcase(op_id, pattern):
             return "harmless"
@@ -413,19 +503,52 @@ def _operator_predicate_ids(check: Any) -> list[str]:
 
 
 def _verify_active_step() -> None:
-    global _active_step_id, _active_check, _step_op_log
+    global _active_step_id, _active_check, _step_op_log, _last_non_harmless_step_op
+    global _guard_check, _guard_step_id
 
     step_id = _active_step_id
     if not step_id:
         return
 
     _enqueue({"type": "step_verified", "step_id": step_id, "t": time.time()})
+    step = _step_by_id.get(step_id)
+    if step and "state_after" in step:
+        _guard_check = step["state_after"]
+        _guard_step_id = step_id
+    _guard_episode.reset()
+
     if _quest_id and _steps and _steps[-1]["id"] == step_id:
         _enqueue({"type": "quest_complete", "quest_id": _quest_id})
 
     _active_step_id = None
     _active_check = None
     _step_op_log = []
+    _last_non_harmless_step_op = ""
+
+
+def _tick_guard() -> None:
+    guard_ok = checks.evaluate(_guard_check, _last_snapshot, []) if _guard_check else True
+    now = time.time()
+    for message in _guard_episode.tick(guard_ok, now):
+        if message.get("type") == "wrong_state":
+            _enqueue(
+                {
+                    "type": "wrong_state",
+                    "guard_step_id": _guard_step_id,
+                    "step_id": _active_step_id or "",
+                    "op_id": _last_non_harmless_step_op,
+                    "t": now,
+                }
+            )
+        elif message.get("type") == "wrong_state_cleared":
+            _enqueue(
+                {
+                    "type": "wrong_state_cleared",
+                    "guard_step_id": _guard_step_id,
+                    "step_id": _active_step_id or "",
+                    "t": now,
+                }
+            )
 
 
 def _emit_snapshot(snapshot: dict[str, Any]) -> None:

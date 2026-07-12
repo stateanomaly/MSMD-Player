@@ -10,6 +10,8 @@ const TARGET_SIZE = 56;
 const EMPTY_VOICE_MANIFEST = Object.freeze({
   praise: Object.freeze([]),
   levelup: Object.freeze([]),
+  oops: Object.freeze([]),
+  recover: Object.freeze([]),
 });
 
 const mascotImage = document.querySelector("#mascot");
@@ -24,6 +26,7 @@ let quest = null;
 let engine = null;
 let voiceManifest = EMPTY_VOICE_MANIFEST;
 let lastPraise = "";
+let lastOops = "";
 let captionTimer = 0;
 let latestBounds = {
   x: 0,
@@ -74,6 +77,8 @@ async function loadVoiceManifest() {
     return {
       praise: normalizeVoiceList(data.praise),
       levelup: normalizeVoiceList(data.levelup),
+      oops: normalizeVoiceList(data.oops),
+      recover: normalizeVoiceList(data.recover),
     };
   } catch {
     return EMPTY_VOICE_MANIFEST;
@@ -203,6 +208,39 @@ function handleCorrect() {
   mascot.playRandomSuccess();
 }
 
+function replayCurrentStep() {
+  const step = engine?.currentStep?.();
+  if (step) {
+    audio.playNarration(narrationForStep(step));
+    showCaption(step.narration_text || step.goal || "");
+  }
+}
+
+function handleWrongState() {
+  audio.stopNarration();
+  const oops = randomItemWithoutImmediateRepeat(voiceManifest.oops, lastOops);
+  if (oops) {
+    lastOops = oops;
+    audio.playVoice(voiceUrl(oops));
+  }
+  showCaption("Oops — that's not it! Press ⌘Z to undo.", STEER_CAPTION_MS);
+  mascot.playOnce("wave");
+}
+
+function handleWrongStateCleared() {
+  const recover = randomItem(voiceManifest.recover);
+  if (recover) {
+    audio.playVoice(voiceUrl(recover));
+  } else {
+    const praise = randomItemWithoutImmediateRepeat(voiceManifest.praise, lastPraise);
+    if (praise) {
+      lastPraise = praise;
+      audio.playVoice(voiceUrl(praise));
+    }
+  }
+  replayCurrentStep();
+}
+
 function handleWin() {
   renderHotspot(null);
   audio.stopNarration();
@@ -292,11 +330,14 @@ function handleEvent(message) {
   }
   if (message.type === "step_verified") {
     engine.onStepVerified(message.step_id);
+  } else if (message.type === "wrong_state") {
+    handleWrongState();
+  } else if (message.type === "wrong_state_cleared") {
+    handleWrongStateCleared();
   } else if (message.type === "replay_narration") {
     const step = engine.currentStep();
-    if (step && (!message.step_id || message.step_id === step.id)) {
-      audio.playNarration(narrationForStep(step));
-      showCaption(step.narration_text || step.goal || "");
+    if (!message.step_id || message.step_id === step?.id) {
+      replayCurrentStep();
     }
   }
 }
