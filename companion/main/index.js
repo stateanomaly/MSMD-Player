@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, screen, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -9,6 +9,7 @@ const { BlenderWindowWatcher } = require("./blender-window");
 const { launchBlender } = require("./blender-launch");
 const { captureBlenderWindow } = require("./screenshot");
 const { CuaController } = require("./cua");
+const { hasOauthCredentials, signIn } = require("./cua-providers/openai-auth");
 const { ElevenLabsTts } = require("./tts");
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
@@ -18,6 +19,7 @@ const TCP_PORT = Number(process.env.MSMD_GUIDED_PORT || 41797);
 const FAKE_MODE = process.env.MSMD_FAKE_ADDON === "1";
 const SMOKE = process.argv.includes("--smoke");
 const CUA_DRY_RUN = process.argv.includes("--cua-dry-run");
+const LOGIN_OPENAI = process.argv.includes("--login-openai");
 const FAKE_BOUNDS = Object.freeze({ x: 100, y: 100, width: 1280, height: 800 });
 
 let overlay = null;
@@ -402,10 +404,43 @@ async function ensureBlenderAddon(config) {
   return true;
 }
 
-function startCua(config) {
-  if (!questForRenderer || questForRenderer.error || !tcpClient) {
+function usesOpenAiOauth(config) {
+  return (
+    (config.cua?.provider || "openai") === "openai" &&
+    (config.cua?.openai?.auth || "oauth") === "oauth"
+  );
+}
+
+async function maybePromptForOpenAiSignIn(config) {
+  if (!config.cua?.enabled || CUA_DRY_RUN || !usesOpenAiOauth(config)) {
     return;
   }
+  const userDataPath = app.getPath("userData");
+  if (await hasOauthCredentials({ config, userDataPath })) {
+    return;
+  }
+  const result = await dialog.showMessageBox({
+    type: "question",
+    buttons: ["Sign In", "Not Now"],
+    defaultId: 0,
+    cancelId: 1,
+    title: "Sign in with ChatGPT",
+    message: "Sign in with ChatGPT now?",
+    detail: "Guided CUA uses OpenAI OAuth by default and stores app-owned tokens in the app data directory.",
+  });
+  if (result.response !== 0) {
+    console.warn("[guided] OpenAI sign-in skipped; CUA OAuth credentials are not available");
+    return;
+  }
+  await signIn({ shell, userDataPath });
+  console.log("[guided] OpenAI sign-in complete");
+}
+
+async function startCua(config) {
+  if (SMOKE || !questForRenderer || questForRenderer.error || !tcpClient) {
+    return;
+  }
+  await maybePromptForOpenAiSignIn(config);
   const tts = new ElevenLabsTts({
     apiKey: config.elevenLabsApiKey,
     userDataPath: app.getPath("userData"),
@@ -418,6 +453,7 @@ function startCua(config) {
     tts,
     dryRun: CUA_DRY_RUN,
     logger: console,
+    userDataPath: app.getPath("userData"),
     captureScreenshot: () => captureBlenderWindow({ bounds: currentBounds, logger: console }),
   });
   cua.on("steer", (payload) => {
@@ -463,6 +499,12 @@ async function main() {
     resourcesPath: process.resourcesPath,
     userDataPath: app.getPath("userData"),
   });
+  if (LOGIN_OPENAI) {
+    await signIn({ shell, userDataPath: app.getPath("userData") });
+    console.log("[guided] OpenAI sign-in complete");
+    app.exit(0);
+    return;
+  }
   const loadedQuest = loadQuest(config);
   questForRenderer = loadedQuest.renderer;
   questForWire = loadedQuest.wire;
@@ -492,7 +534,7 @@ async function main() {
   createOverlay();
   if (!(SMOKE && !FAKE_MODE)) {
     startQuestFlow();
-    startCua(config);
+    await startCua(config);
   }
 
   if (SMOKE) {

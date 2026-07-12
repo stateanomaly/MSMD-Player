@@ -4,10 +4,17 @@
   "autoLaunchBlender": true,
   "cua": {
     "enabled": false,
+    "provider": "openai",
     "model": "claude-opus-4-8",
+    "openai": {
+      "auth": "oauth",
+      "model": "gpt-5.5",
+      "codexAuthPath": "~/.codex/auth.json"
+    },
     "cooldownS": 30,
     "maxPerStep": 3
   },
   "anthropicApiKey": "",
+  "openaiApiKey": "",
   "elevenLabsApiKey": ""
 }
