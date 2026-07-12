@@ -512,12 +512,14 @@ def _verify_active_step() -> None:
 
     _enqueue({"type": "step_verified", "step_id": step_id, "t": time.time()})
     step = _step_by_id.get(step_id)
-    if step and "state_after" in step:
+    is_last_step = bool(_quest_id and _steps and _steps[-1]["id"] == step_id)
+    if not is_last_step and step and "state_after" in step:
         _guard_check = step["state_after"]
         _guard_step_id = step_id
     _guard_episode.reset()
 
-    if _quest_id and _steps and _steps[-1]["id"] == step_id:
+    if is_last_step:
+        _guard_check = None
         _enqueue({"type": "quest_complete", "quest_id": _quest_id})
 
     _active_step_id = None

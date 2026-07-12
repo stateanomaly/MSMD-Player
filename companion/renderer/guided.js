@@ -331,9 +331,13 @@ function handleEvent(message) {
   if (message.type === "step_verified") {
     engine.onStepVerified(message.step_id);
   } else if (message.type === "wrong_state") {
-    handleWrongState();
+    if (engine.state === "running") {
+      handleWrongState();
+    }
   } else if (message.type === "wrong_state_cleared") {
-    handleWrongStateCleared();
+    if (engine.state === "running") {
+      handleWrongStateCleared();
+    }
   } else if (message.type === "replay_narration") {
     const step = engine.currentStep();
     if (!message.step_id || message.step_id === step?.id) {
