@@ -23,6 +23,15 @@
   "levelup_04.mp3",
   "levelup_05.mp3"
  ],
- "oops": [],
- "recover": []
+ "oops": [
+  "oops_00.mp3",
+  "oops_01.mp3",
+  "oops_02.mp3",
+  "oops_03.mp3"
+ ],
+ "recover": [
+  "recover_00.mp3",
+  "recover_01.mp3",
+  "recover_02.mp3"
+ ]
 }
