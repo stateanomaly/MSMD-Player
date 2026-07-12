@@ -200,6 +200,8 @@ def main() -> int:
         )
         if not snapshot:
             return fail("state_snapshot not received")
+        if "window" not in snapshot:
+            return fail("state_snapshot missing window key")
 
         companion.send({"type": "step_begin", "step_id": "s0"})
         if not pump_until(lambda: watcher._active_step_id == "s0", watcher):

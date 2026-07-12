@@ -1,0 +1,51 @@
+{
+  "appId": "com.msmd.guided",
+  "productName": "MSMD Guided",
+  "directories": {
+    "output": "dist-app"
+  },
+  "mac": {
+    "identity": null,
+    "target": [
+      "dir"
+    ],
+    "category": "public.app-category.education"
+  },
+  "asar": true,
+  "electronDownload": {
+    "cache": "/tmp/msmd-electron-cache"
+  },
+  "files": [
+    "package.json",
+    "main/**/*",
+    "preload.js",
+    "renderer/guided.js",
+    "renderer/guided-engine.js",
+    "renderer/index.html",
+    "renderer/styles.css",
+    {
+      "from": "../webapp/js",
+      "to": "renderer/js",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "../webapp/assets",
+      "to": "renderer/assets",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
+  "extraResources": [
+    {
+      "from": "../quests",
+      "to": "quests"
+    },
+    {
+      "from": "../addon",
+      "to": "addon"
+    }
+  ]
+}

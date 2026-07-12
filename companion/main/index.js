@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, screen } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -6,6 +6,7 @@ const { spawn } = require("node:child_process");
 const { loadConfig } = require("./config");
 const { GuidedTcpClient } = require("./tcp-client");
 const { BlenderWindowWatcher } = require("./blender-window");
+const { launchBlender } = require("./blender-launch");
 const { captureBlenderWindow } = require("./screenshot");
 const { CuaController } = require("./cua");
 const { ElevenLabsTts } = require("./tts");
@@ -25,10 +26,16 @@ let tcpClient = null;
 let fakeAddon = null;
 let cua = null;
 let currentBounds = null;
+let overlayBoundsApplied = null;
 let currentStepIndex = 0;
 let questForRenderer = null;
 let questForWire = null;
 let smokeTimer = null;
+let spawnedBlender = null;
+let blenderLaunchAttempted = false;
+let addonHelloReceived = false;
+let questFlowStarted = false;
+let fatalShown = false;
 
 function inlineFakeQuest() {
   return {
@@ -123,12 +130,30 @@ function firstStepId() {
   return questForWire?.steps?.[0]?.id || "";
 }
 
+function sameBounds(a, b) {
+  return Boolean(
+    a &&
+      b &&
+      a.x === b.x &&
+      a.y === b.y &&
+      a.width === b.width &&
+      a.height === b.height
+  );
+}
+
 function applyOverlayBounds(bounds) {
+  if (!bounds) {
+    return;
+  }
   currentBounds = bounds;
   if (!overlay || overlay.isDestroyed()) {
     return;
   }
+  if (sameBounds(bounds, overlayBoundsApplied)) {
+    return;
+  }
   overlay.setBounds(bounds);
+  overlayBoundsApplied = { ...bounds };
   overlay.webContents.send("guided:bounds", bounds);
   if (!SMOKE && !overlay.isVisible()) {
     overlay.showInactive();
@@ -140,6 +165,26 @@ function hideOverlay() {
     return;
   }
   overlay.hide();
+}
+
+function destroyOverlay() {
+  if (overlay && !overlay.isDestroyed()) {
+    overlay.hide();
+    overlay.destroy();
+  }
+  overlay = null;
+  overlayBoundsApplied = null;
+}
+
+function showFatalAndQuit(title, message) {
+  if (fatalShown) {
+    return;
+  }
+  fatalShown = true;
+  destroyOverlay();
+  console.error(message);
+  dialog.showErrorBox(title, message);
+  app.quit();
 }
 
 function createOverlay() {
@@ -161,6 +206,10 @@ function createOverlay() {
   overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlay.setIgnoreMouseEvents(true);
   overlay.loadFile(path.join(APP_ROOT, "renderer", "index.html"));
+  overlayBoundsApplied = null;
+  if (currentBounds) {
+    applyOverlayBounds(currentBounds);
+  }
   return overlay;
 }
 
@@ -205,23 +254,28 @@ function startTcp() {
   if (!questForWire) {
     return;
   }
+  addonHelloReceived = false;
   tcpClient = new GuidedTcpClient({
     port: TCP_PORT,
     logger: console,
   });
-  tcpClient.setQuestLoad(questForWire);
-  tcpClient.setCurrentStepId(firstStepId());
 
-  tcpClient.on("connect", () => console.log("[guided] connected to addon"));
+  tcpClient.on("connect", () => console.log("[guided] connected to addon socket"));
   tcpClient.on("disconnect", () => console.log("[guided] disconnected, retrying"));
 
   tcpClient.on("message", (message) => {
     cua?.handleMessage(message);
+    if (message.type === "state_snapshot" && message.window) {
+      watcher?.handleAddonWindow(message.window);
+    }
     if (overlay && !overlay.isDestroyed()) {
       overlay.webContents.send("guided:event", message);
     }
 
     if (message.type === "hello") {
+      if (message.role === "addon") {
+        addonHelloReceived = true;
+      }
       console.log(`[guided] addon hello blender=${message.blender_version}`);
     } else if (message.type === "quest_loaded") {
       console.log(`[guided] quest_loaded ok=${message.ok}`);
@@ -244,8 +298,25 @@ function startTcp() {
     }
   });
 
-  beginStep(0, { skipSend: true });
   tcpClient.connect();
+}
+
+function startQuestFlow() {
+  if (questFlowStarted || !questForWire || !tcpClient) {
+    return;
+  }
+  questFlowStarted = true;
+  tcpClient.setQuestLoad(questForWire);
+  tcpClient.setCurrentStepId(firstStepId());
+  tcpClient.send("quest_load", questForWire);
+  beginStep(0);
+}
+
+function getScreenInfo() {
+  return {
+    primaryHeight: screen.getPrimaryDisplay().bounds.height,
+    displays: screen.getAllDisplays().map((display) => display.bounds),
+  };
 }
 
 function startWindowTracking() {
@@ -253,10 +324,82 @@ function startWindowTracking() {
     applyOverlayBounds(FAKE_BOUNDS);
     return;
   }
-  watcher = new BlenderWindowWatcher({ logger: console });
+  watcher = new BlenderWindowWatcher({ logger: console, getScreenInfo });
   watcher.on("bounds", applyOverlayBounds);
   watcher.on("gone", hideOverlay);
   watcher.start();
+}
+
+function waitForAddonHello(timeoutMs) {
+  if (addonHelloReceived) {
+    return Promise.resolve(true);
+  }
+  if (!tcpClient) {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (ok) => {
+      if (done) {
+        return;
+      }
+      done = true;
+      clearTimeout(timer);
+      tcpClient?.off("hello", onHello);
+      resolve(ok);
+    };
+    const onHello = (message) => {
+      if (!message || message.role === "addon") {
+        addonHelloReceived = true;
+        finish(true);
+      }
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    timer.unref?.();
+    tcpClient.once("hello", onHello);
+  });
+}
+
+function spawnedBlenderIsAlive() {
+  return Boolean(spawnedBlender && spawnedBlender.exitCode === null && !spawnedBlender.killed);
+}
+
+function showAddonUnreachable(config) {
+  let message = `Couldn't reach the guided add-on.\n\nStart Blender with the MSMD Guided add-on enabled, or set blenderPath in config.json:\n${config.blenderPath}\n\nExpected a TCP hello on 127.0.0.1:${TCP_PORT}.`;
+  if (spawnedBlenderIsAlive()) {
+    message +=
+      "\n\nBlender is still running, but the guided add-on did not accept the TCP connection within 45 seconds.";
+  }
+  showFatalAndQuit("Couldn't reach the guided add-on", message);
+}
+
+async function ensureBlenderAddon(config) {
+  if (SMOKE && !FAKE_MODE) {
+    return true;
+  }
+
+  const existingHello = await waitForAddonHello(3000);
+  if (existingHello) {
+    return true;
+  }
+
+  if (!FAKE_MODE && !blenderLaunchAttempted && config.autoLaunchBlender !== false) {
+    blenderLaunchAttempted = true;
+    console.log("[guided] launching Blender");
+    spawnedBlender = launchBlender({ config, logger: console });
+    spawnedBlender.once("exit", () => {
+      console.log("[guided] Blender exited");
+      app.quit();
+    });
+  }
+
+  const reached = await waitForAddonHello(45000);
+  if (!reached) {
+    console.log("[guided] couldn't reach guided add-on");
+    showAddonUnreachable(config);
+    return false;
+  }
+  return true;
 }
 
 function startCua(config) {
@@ -314,19 +457,43 @@ function stopAll() {
 }
 
 async function main() {
-  const config = loadConfig({ appRoot: APP_ROOT });
+  const config = loadConfig({
+    appRoot: APP_ROOT,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    userDataPath: app.getPath("userData"),
+  });
   const loadedQuest = loadQuest(config);
   questForRenderer = loadedQuest.renderer;
   questForWire = loadedQuest.wire;
+  if (questForRenderer?.error) {
+    showFatalAndQuit("Quest file missing", questForRenderer.error.message);
+    return;
+  }
 
   ipcMain.handle("guided:quest-data", () => questForRenderer);
   const rendererReady = waitForRendererReady();
 
   startFakeAddon();
+  if (SMOKE && !FAKE_MODE) {
+    applyOverlayBounds(FAKE_BOUNDS);
+  } else {
+    startWindowTracking();
+  }
+
+  if (!(SMOKE && !FAKE_MODE)) {
+    startTcp();
+    const addonReady = await ensureBlenderAddon(config);
+    if (!addonReady) {
+      return;
+    }
+  }
+
   createOverlay();
-  startWindowTracking();
-  startTcp();
-  startCua(config);
+  if (!(SMOKE && !FAKE_MODE)) {
+    startQuestFlow();
+    startCua(config);
+  }
 
   if (SMOKE) {
     smokeTimer = setTimeout(() => {
@@ -342,6 +509,10 @@ async function main() {
 
 app.whenReady().then(main).catch((error) => {
   console.error(error);
+  if (app.isReady()) {
+    showFatalAndQuit("MSMD Guided Error", error?.stack || String(error));
+    return;
+  }
   app.exit(1);
 });
 

@@ -5,12 +5,14 @@
   "main": "main/index.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/protocol.test.js"
+    "test": "node --test test/protocol.test.js",
+    "dist": "electron-builder --mac --config electron-builder.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "latest"
   },
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
   }
 }

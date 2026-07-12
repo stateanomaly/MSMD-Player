@@ -1,8 +1,11 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { DEFAULT_BLENDER_PATH } = require("./blender-launch");
 
 const DEFAULT_CONFIG = Object.freeze({
   questPath: "../quests/snowman/quest.json",
+  blenderPath: DEFAULT_BLENDER_PATH,
+  autoLaunchBlender: true,
   cua: Object.freeze({
     enabled: false,
     model: "claude-opus-4-8",
@@ -44,8 +47,19 @@ function resolveQuestPath(config, appRoot = companionRootFromHere()) {
 
 function loadConfig(options = {}) {
   const appRoot = options.appRoot || companionRootFromHere();
-  const fileConfig = loadJsonIfPresent(path.join(appRoot, "config.json"));
-  const config = mergeConfig(DEFAULT_CONFIG, fileConfig);
+  const isPackaged = Boolean(options.isPackaged);
+  const resourcesPath = options.resourcesPath || process.resourcesPath || path.resolve(appRoot, "..");
+  const userDataPath = options.userDataPath || appRoot;
+  const configRoot = isPackaged ? userDataPath : appRoot;
+  const configPath = path.join(configRoot, "config.json");
+  const defaults = {
+    ...DEFAULT_CONFIG,
+    questPath: isPackaged
+      ? path.join(resourcesPath, "quests", "snowman", "quest.json")
+      : DEFAULT_CONFIG.questPath,
+  };
+  const fileConfig = loadJsonIfPresent(configPath);
+  const config = mergeConfig(defaults, fileConfig);
 
   if (process.env.ANTHROPIC_API_KEY) {
     config.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
@@ -55,7 +69,10 @@ function loadConfig(options = {}) {
   }
 
   config.appRoot = appRoot;
-  config.questPathResolved = resolveQuestPath(config, appRoot);
+  config.configPath = configPath;
+  config.resourcesPath = resourcesPath;
+  config.userDataPath = userDataPath;
+  config.questPathResolved = resolveQuestPath(config, configRoot);
   return config;
 }
 

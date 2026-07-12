@@ -80,14 +80,17 @@ def tick() -> float:
     _drain_inbox()
     _diff_operator_history()
 
+    window = build_window_snapshot()
+    window_changed = _last_snapshot is not None and window != _last_snapshot.get("window")
     should_rebuild = (
         _force_snapshot
         or _dirty
+        or window_changed
         or _last_snapshot is None
         or _tick_count % 10 == 0
     )
     if should_rebuild:
-        snapshot = build_snapshot()
+        snapshot = build_snapshot(window=window)
         if _force_snapshot or snapshot != _last_snapshot:
             _emit_snapshot(snapshot)
         _last_snapshot = snapshot
@@ -101,7 +104,7 @@ def tick() -> float:
     return TIMER_INTERVAL
 
 
-def build_snapshot() -> dict[str, Any]:
+def build_snapshot(window: dict[str, int] | None = None) -> dict[str, Any]:
     context = bpy.context
     scene = context.scene
     active_object = context.view_layer.objects.active
@@ -124,7 +127,41 @@ def build_snapshot() -> dict[str, Any]:
         "objects": objects,
         "filepath": bpy.data.filepath,
         "is_dirty": bool(bpy.data.is_dirty),
+        "window": window,
     }
+
+
+def build_window_snapshot() -> dict[str, int] | None:
+    try:
+        windows = list(bpy.context.window_manager.windows)
+    except Exception:
+        return None
+
+    best_window = None
+    best_area = -1
+    for window in windows:
+        try:
+            width = int(window.width)
+            height = int(window.height)
+        except Exception:
+            continue
+        area = width * height
+        if area > best_area:
+            best_area = area
+            best_window = window
+
+    if best_window is None:
+        return None
+
+    try:
+        return {
+            "x": int(best_window.x),
+            "y": int(best_window.y),
+            "width": int(best_window.width),
+            "height": int(best_window.height),
+        }
+    except Exception:
+        return None
 
 
 def _reset_runtime_state() -> None:
