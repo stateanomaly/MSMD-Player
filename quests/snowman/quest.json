@@ -4,6 +4,10 @@
   "title": "Build a Snowman!",
   "voice": "Mtmp3KhFIjYpWYRycDe3",
   "harmless_ops": ["view3d.*", "screen.*", "outliner.*", "ed.undo", "object.select_all", "wm.save*"],
+  "initial_state": { "all": [
+    { "type": "scene_exists", "name": "Cube" },
+    { "type": "count", "object_type": "MESH", "op": "eq", "value": 1 }
+  ] },
   "steps": [
     {
       "id": "s0",
@@ -12,6 +16,11 @@
       "goal": "Delete the default cube so the scene has no object named Cube",
       "target": { "kind": "window_norm", "x": 0.5, "y": 0.55 },
       "check": { "type": "scene_missing", "name": "Cube" },
+      "expected_ops": ["object.delete"],
+      "state_after": { "all": [
+        { "type": "scene_missing", "name": "Cube" },
+        { "type": "count", "object_type": "MESH", "op": "eq", "value": 0 }
+      ] },
       "timeout_s": 45
     },
     {
@@ -21,6 +30,11 @@
       "goal": "Add a UV Sphere mesh to the scene",
       "target": { "kind": "none" },
       "check": { "any": [ { "type": "operator", "id": "mesh.primitive_uv_sphere_add" }, { "type": "scene_exists", "name": "Sphere" } ] },
+      "expected_ops": ["mesh.primitive_uv_sphere_add"],
+      "state_after": { "all": [
+        { "type": "scene_exists", "name": "Sphere" },
+        { "type": "count", "object_type": "MESH", "op": "eq", "value": 1 }
+      ] },
       "timeout_s": 45
     },
     {
@@ -30,6 +44,12 @@
       "goal": "Scale the sphere up to 1.5",
       "target": { "kind": "none" },
       "check": { "type": "object_attr", "name": "Sphere", "attr": "scale.x", "op": "gte", "value": 1.3 },
+      "expected_ops": ["transform.resize"],
+      "state_after": { "all": [
+        { "type": "scene_exists", "name": "Sphere" },
+        { "type": "object_attr", "name": "Sphere", "attr": "scale.x", "op": "gte", "value": 1.3 },
+        { "type": "count", "object_type": "MESH", "op": "eq", "value": 1 }
+      ] },
       "timeout_s": 45
     },
     {
@@ -39,6 +59,13 @@
       "goal": "Rename the object Sphere to Belly using the Outliner",
       "target": { "kind": "window_norm", "x": 0.86, "y": 0.12 },
       "check": { "all": [ { "type": "scene_exists", "name": "Belly" }, { "type": "scene_missing", "name": "Sphere" } ] },
+      "expected_ops": ["outliner.item_rename"],
+      "state_after": { "all": [
+        { "type": "scene_exists", "name": "Belly" },
+        { "type": "scene_missing", "name": "Sphere" },
+        { "type": "object_attr", "name": "Belly", "attr": "scale.x", "op": "gte", "value": 1.3 },
+        { "type": "count", "object_type": "MESH", "op": "eq", "value": 1 }
+      ] },
       "timeout_s": 60
     },
     {
@@ -48,6 +75,12 @@
       "goal": "Duplicate the Belly object (duplicate stays at the same spot)",
       "target": { "kind": "none" },
       "check": { "any": [ { "type": "operator", "id": "object.duplicate*" }, { "type": "scene_exists", "name": "Belly.001" } ] },
+      "expected_ops": ["object.duplicate*"],
+      "state_after": { "all": [
+        { "type": "scene_exists", "name": "Belly" },
+        { "type": "scene_exists", "name": "Belly.001" },
+        { "type": "count", "object_type": "MESH", "op": "eq", "value": 2 }
+      ] },
       "timeout_s": 45
     },
     {
@@ -57,6 +90,12 @@
       "goal": "Move the duplicated sphere Belly.001 up 2 units on the Z axis",
       "target": { "kind": "none" },
       "check": { "type": "object_attr", "name": "Belly.001", "attr": "location.z", "op": "gte", "value": 1.2 },
+      "expected_ops": ["transform.translate"],
+      "state_after": { "all": [
+        { "type": "scene_exists", "name": "Belly.001" },
+        { "type": "object_attr", "name": "Belly.001", "attr": "location.z", "op": "gte", "value": 1.2 },
+        { "type": "count", "object_type": "MESH", "op": "eq", "value": 2 }
+      ] },
       "timeout_s": 45
     },
     {
@@ -66,6 +105,13 @@
       "goal": "Scale Belly.001 down to about 0.6 of its size",
       "target": { "kind": "none" },
       "check": { "type": "object_attr", "name": "Belly.001", "attr": "scale.x", "op": "lte", "value": 1.1 },
+      "expected_ops": ["transform.resize"],
+      "state_after": { "all": [
+        { "type": "scene_exists", "name": "Belly.001" },
+        { "type": "object_attr", "name": "Belly.001", "attr": "scale.x", "op": "lte", "value": 1.1 },
+        { "type": "object_attr", "name": "Belly.001", "attr": "location.z", "op": "gte", "value": 1.2 },
+        { "type": "count", "object_type": "MESH", "op": "eq", "value": 2 }
+      ] },
       "timeout_s": 45
     },
     {
@@ -75,6 +121,13 @@
       "goal": "Rename the object Belly.001 to Head using the Outliner",
       "target": { "kind": "window_norm", "x": 0.86, "y": 0.12 },
       "check": { "type": "scene_exists", "name": "Head" },
+      "expected_ops": ["outliner.item_rename"],
+      "state_after": { "all": [
+        { "type": "scene_exists", "name": "Head" },
+        { "type": "scene_missing", "name": "Belly.001" },
+        { "type": "scene_exists", "name": "Belly" },
+        { "type": "count", "object_type": "MESH", "op": "eq", "value": 2 }
+      ] },
       "timeout_s": 60
     },
     {
@@ -84,6 +137,12 @@
       "goal": "Add a Cone mesh to the scene for the carrot nose",
       "target": { "kind": "none" },
       "check": { "any": [ { "type": "operator", "id": "mesh.primitive_cone_add" }, { "type": "scene_exists", "name": "Cone" } ] },
+      "expected_ops": ["mesh.primitive_cone_add"],
+      "state_after": { "all": [
+        { "type": "scene_exists", "name": "Head" },
+        { "type": "scene_exists", "name": "Cone" },
+        { "type": "count", "object_type": "MESH", "op": "eq", "value": 3 }
+      ] },
       "timeout_s": 45
     },
     {
@@ -93,6 +152,7 @@
       "goal": "Save the .blend file to disk",
       "target": { "kind": "none" },
       "check": { "type": "saved" },
+      "expected_ops": ["wm.save*"],
       "timeout_s": 45
     }
   ]

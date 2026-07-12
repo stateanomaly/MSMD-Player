@@ -11,6 +11,7 @@ const { captureBlenderWindow } = require("./screenshot");
 const { CuaController } = require("./cua");
 const { hasOauthCredentials, signIn } = require("./cua-providers/openai-auth");
 const { ElevenLabsTts } = require("./tts");
+const { questLoadForWire } = require("./quest-wire");
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
@@ -72,17 +73,6 @@ function inlineFakeQuest() {
         timeout_s: 45,
       },
     ],
-  };
-}
-
-function questLoadForWire(quest) {
-  return {
-    quest_id: quest.id,
-    harmless_ops: Array.isArray(quest.harmless_ops) ? quest.harmless_ops : [],
-    steps: (Array.isArray(quest.steps) ? quest.steps : []).map((step) => ({
-      id: step.id,
-      check: step.check || {},
-    })),
   };
 }
 
@@ -293,6 +283,10 @@ function startTcp() {
       }
     } else if (message.type === "deviation") {
       console.log(`[guided] deviation ${message.op_id} severity=${message.severity}`);
+    } else if (message.type === "wrong_state") {
+      console.log(`[guided] wrong_state guard=${message.guard_step_id} op=${message.op_id}`);
+    } else if (message.type === "wrong_state_cleared") {
+      console.log(`[guided] wrong_state_cleared guard=${message.guard_step_id} op=${message.op_id || ""}`);
     } else if (message.type === "quest_complete") {
       console.log(`[guided] quest_complete ${message.quest_id}`);
     } else if (message.type === "error") {
