@@ -38,5 +38,6 @@ webapp/content/manifest.json
 
 node_modules/
 companion/config.json
+companion/dist-app/
 __pycache__/
 .venv*/

@@ -1,5 +1,7 @@
 {
   "questPath": "../quests/snowman/quest.json",
+  "blenderPath": "/Applications/Blender.app/Contents/MacOS/Blender",
+  "autoLaunchBlender": true,
   "cua": {
     "enabled": false,
     "model": "claude-opus-4-8",
