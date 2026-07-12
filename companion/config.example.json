@@ -1,0 +1,11 @@
+{
+  "questPath": "../quests/snowman/quest.json",
+  "cua": {
+    "enabled": false,
+    "model": "claude-opus-4-8",
+    "cooldownS": 30,
+    "maxPerStep": 3
+  },
+  "anthropicApiKey": "",
+  "elevenLabsApiKey": ""
+}
